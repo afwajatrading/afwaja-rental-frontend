@@ -46,6 +46,7 @@ const appId =
   typeof globalThis.__app_id !== 'undefined'
     ? globalThis.__app_id
     : import.meta.env.VITE_APP_ID || 'afwaja-car-rental-app';
+const MOBILE_IMAGE_ACCEPT = 'image/*,.heic,.HEIC,.heif,.HEIF';
 
 // --- DATA KENDARAAN (MOCK DATA) ---
 const INITIAL_CARS = [
@@ -342,7 +343,7 @@ const createInitialAgreementPdf = async ({ booking, vcrImages, signatureBase64 }
     pdf.setFont('helvetica', 'normal');
   };
 
-  const addImageBlock = async ({ title, source, maxHeight = 180 }) => {
+  const addImageBlock = async ({ title, source, maxHeight = 180, maxWidth = 340 }) => {
     const dataUrl = await fetchImageAsDataUrl(source);
     if (!dataUrl) return;
 
@@ -354,18 +355,26 @@ const createInitialAgreementPdf = async ({ booking, vcrImages, signatureBase64 }
     });
     if (!loaded || !image.width || !image.height) return;
 
-    const imageWidth = contentWidth;
-    const ratio = image.height / image.width;
-    const imageHeight = Math.min(maxHeight, imageWidth * ratio);
+    const naturalWidthInPdf = image.width * 0.75;
+    const naturalHeightInPdf = image.height * 0.75;
+    const widthScale = Math.min(1, maxWidth / naturalWidthInPdf, contentWidth / naturalWidthInPdf);
+    const heightScale = Math.min(1, maxHeight / naturalHeightInPdf);
+    const scale = Math.min(widthScale, heightScale);
+    const imageWidth = naturalWidthInPdf * scale;
+    const imageHeight = naturalHeightInPdf * scale;
+    const imageX = margin + ((contentWidth - imageWidth) / 2);
 
-    ensureSpace(imageHeight + 34);
+    ensureSpace(imageHeight + 46);
     pdf.setFont('helvetica', 'bold');
     pdf.setFontSize(11);
     pdf.setTextColor('#0f172a');
     pdf.text(title, margin, y);
     y += 12;
-    pdf.addImage(dataUrl, getImageFormatForPdf(dataUrl), margin, y, imageWidth, imageHeight);
-    y += imageHeight + 16;
+    pdf.setDrawColor(226, 232, 240);
+    pdf.setFillColor(248, 250, 252);
+    pdf.roundedRect(imageX - 6, y - 6, imageWidth + 12, imageHeight + 12, 12, 12, 'FD');
+    pdf.addImage(dataUrl, getImageFormatForPdf(dataUrl), imageX, y, imageWidth, imageHeight);
+    y += imageHeight + 22;
     pdf.setFont('helvetica', 'normal');
   };
 
@@ -428,7 +437,8 @@ const createInitialAgreementPdf = async ({ booking, vcrImages, signatureBase64 }
   await addImageBlock({ title: 'Dashboard / Odometer', source: vcrImages.odometer });
 
   addSectionTitle('Customer Digital Signature');
-  await addImageBlock({ title: 'Signature', source: signatureBase64, maxHeight: 120 });
+  await addImageBlock({ title: 'Signature', source: signatureBase64, maxHeight: 70, maxWidth: 220 });
+  addWrappedText(`Signed by: ${customer.name || '-'}`, { fontSize: 10, color: '#475569', gapAfter: 10 });
 
   ensureSpace(40);
   pdf.setFont('helvetica', 'italic');
@@ -500,9 +510,9 @@ export default function App() {
   const [paymentUrl, setPaymentUrl] = useState('');
   const [kycUploading, setKycUploading] = useState(false);
   const [uploadedDocs, setUploadedDocs] = useState({ ic: null, license: null, bill: null });
-  const [vcrDocs, setVcrDocs] = useState({ front: null, back: null, left: null, right: null });
+  const [vcrDocs, setVcrDocs] = useState({ front: null, back: null, left: null, right: null, odometer: null });
   const [vcrUploading, setVcrUploading] = useState(false);
-  const [returnVcrDocs, setReturnVcrDocs] = useState({ front: null, back: null, left: null, right: null }); 
+  const [returnVcrDocs, setReturnVcrDocs] = useState({ front: null, back: null, left: null, right: null, odometer: null }); 
   const [returnVcrUploading, setReturnVcrUploading] = useState(false);
   const sigCanvas = useRef(null);
   const [isDrawing, setIsDrawing] = useState(false);
@@ -2001,8 +2011,8 @@ export default function App() {
               onChange={(e) => {
                  setSearchTrackId(e.target.value.toUpperCase());
                  setUploadedDocs({ ic: null, license: null, bill: null });
-                 setVcrDocs({ front: null, back: null, left: null, right: null });
-                 setReturnVcrDocs({ front: null, back: null, left: null, right: null });
+                 setVcrDocs({ front: null, back: null, left: null, right: null, odometer: null });
+                 setReturnVcrDocs({ front: null, back: null, left: null, right: null, odometer: null });
               }}
             />
           </div>
@@ -2166,7 +2176,15 @@ export default function App() {
                               <p className="text-[10px] font-bold text-blue-800 uppercase">{docType.label}</p>
                             </>
                           )}
-                          <input type="file" accept="image/*" capture="environment" onChange={(e) => handleVcrFileChange(e, docType.key)} className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10" />
+                          <input
+                            type="file"
+                            accept={MOBILE_IMAGE_ACCEPT}
+                            capture="environment"
+                            multiple={false}
+                            onClick={(e) => { e.currentTarget.value = null; }}
+                            onChange={(e) => handleVcrFileChange(e, docType.key)}
+                            className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10"
+                          />
                         </div>
                       ))}
                     </div>
@@ -2219,7 +2237,15 @@ export default function App() {
                               <p className="text-[10px] font-bold text-orange-800 uppercase">{docType.label}</p>
                             </>
                           )}
-                          <input type="file" accept="image/*" capture="environment" onChange={(e) => handleReturnVcrFileChange(e, docType.key)} className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10" />
+                          <input
+                            type="file"
+                            accept={MOBILE_IMAGE_ACCEPT}
+                            capture="environment"
+                            multiple={false}
+                            onClick={(e) => { e.currentTarget.value = null; }}
+                            onChange={(e) => handleReturnVcrFileChange(e, docType.key)}
+                            className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10"
+                          />
                         </div>
                       ))}
                     </div>
