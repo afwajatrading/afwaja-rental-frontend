@@ -2456,7 +2456,7 @@ export default function App() {
     );
   };
 
-  const TermsView = ({ onBack }) => (
+  const TermsView = ({ onBack } = {}) => (
     <div className="max-w-4xl mx-auto px-4 py-24 animate-fadeIn font-dm">
       <button onClick={() => onBack ? onBack() : setCurrentView('home')} className="text-cyan-600 font-bold mb-8 flex items-center hover:underline bg-white/50 px-4 py-2 rounded-lg inline-flex">
         &larr; {onBack ? 'Back to Booking Form' : 'Back to Home'}
@@ -2558,7 +2558,7 @@ export default function App() {
     </div>
   );
 
-  const PrivacyPolicyView = ({ onBack }) => (
+  const PrivacyPolicyView = ({ onBack } = {}) => (
     <div className="max-w-4xl mx-auto px-4 py-24 animate-fadeIn font-dm">
       <button onClick={() => onBack ? onBack() : setCurrentView('home')} className="text-cyan-600 font-bold mb-8 flex items-center hover:underline bg-white/50 px-4 py-2 rounded-lg inline-flex">
         &larr; {onBack ? 'Back to Booking Form' : 'Back to Home'}
