@@ -1,8 +1,9 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { initializeApp } from 'firebase/app';
 import { getAuth, signInAnonymously, onAuthStateChanged, signInWithCustomToken } from 'firebase/auth';
-import { getFirestore, collection, addDoc, updateDoc, doc, onSnapshot, getDoc, getDocs, query, where } from 'firebase/firestore';
+import { getFirestore, collection, addDoc, updateDoc, doc, onSnapshot, getDoc, getDocs, query, where, setDoc } from 'firebase/firestore';
 import { getStorage, ref, uploadString, getDownloadURL } from 'firebase/storage';
+import { jsPDF } from 'jspdf';
 import { 
   Car, Calendar, CreditCard, FileText, LayoutDashboard, 
   CheckCircle, Bell, User, LogOut, ChevronRight, Printer, 
@@ -89,61 +90,353 @@ const TOURIST_LOCATIONS = [
   { name: 'HQ (Cyberjaya)', pickupLabel: 'Self Pickup (HQ) - MYR 0', returnLabel: 'Self Return (HQ) - MYR 0', fee: 0 }
 ];
 
+const INITIAL_AGREEMENT_TERMS = [
+  {
+    title: '1. Booking & Cancellation Policy',
+    bullets: [
+      'Online bookings will be confirmed via email within one (1) hour. If the vehicle is unavailable, a full refund will be issued.',
+      'Cancellation: 24 hours before pickup = Full Refund. Less than 24 hours or No Show = Strictly No Refund.',
+      'Date changes or rescheduling are subject to vehicle availability.',
+      'Vehicle images shown are for illustration only. The assigned vehicle may differ in color or minor specifications, but the same car model will be provided.',
+    ],
+  },
+  {
+    title: '2. Driver Requirements & Licenses',
+    bullets: [
+      'Drivers must be between 21 to 65 years old. Probationary (P) licenses are strictly not allowed.',
+      'Foreigners with a valid driving license in English are permitted to drive in Malaysia for a maximum of 3 months.',
+      'Additional drivers are subject to RM10/day and must be registered. Unregistered drivers found driving the vehicle will incur a RM500 penalty.',
+    ],
+  },
+  {
+    title: '3. Verification & Pickup (KYC)',
+    bullets: [
+      'Only the individual who made the booking is allowed to collect the vehicle.',
+      'Required documents include IC/Passport, Driving License, and Utility Bill/Business Card or travel support documents for tourists.',
+      'Renters must inspect the vehicle (VCR) upon collection. Any damages not reported immediately will be considered the renter’s responsibility.',
+    ],
+  },
+  {
+    title: '4. Payment Channels, Security Deposit & Refunds',
+    bullets: [
+      'Malaysian citizens must complete payments via FPX (Online Banking). International tourists must complete payments via Credit/Debit Card.',
+      'A security deposit of RM100 to RM400 is required before handover depending on the car category.',
+      'Deposits for Malaysian citizens are refunded via online bank transfer within 3 to 14 working days after the vehicle is returned.',
+      'Deposits for international tourists are refunded to the Credit/Debit Card used during booking, subject to the bank’s policy.',
+      'All refunds are subject to the vehicle being returned in good condition and clear of any traffic summons.',
+    ],
+  },
+  {
+    title: '5. Time, Mileage & Delivery',
+    bullets: [
+      'No refunds will be provided for returning the vehicle earlier than the agreed rental period.',
+      'Late return is charged at 10% of the daily rate per extra hour. If the extra charges exceed the daily rate, a full 1-day charge will apply.',
+      'Rentals include 300 km per day. Excess mileage is charged at RM1 per km.',
+      'Delivery and pickup fees depend on the selected zone or tourist transit hub.',
+    ],
+  },
+  {
+    title: '6. Insurance & Accident Excess',
+    bullets: [
+      'All vehicles are insured. However, the renter is responsible for the non-waivable excess according to the vehicle group.',
+      'A police report must be lodged within 24 hours for any accident.',
+      'Insurance does not cover negligence, tire punctures, wrong fuel, dead batteries due to negligence, undercarriage, glass, or roof damages.',
+    ],
+  },
+  {
+    title: '7. Penalties & Additional Charges',
+    bullets: [
+      'Vehicles must be returned at the same fuel level or a charge of up to RM300 may apply.',
+      'Extremely dirty vehicles will be charged RM300.',
+      'Smoking, vaping, and carrying pets are strictly prohibited and may incur a RM500 penalty.',
+      'Renters are fully responsible for PDRM, JPJ, and local council fines.',
+    ],
+  },
+  {
+    title: '8. Personal Data & Privacy',
+    bullets: [
+      'By proceeding with the rental, the renter agrees to these Terms & Conditions.',
+      'Personal data provided may be shared with relevant agencies for security and debt collection purposes in the event of payment default.',
+    ],
+  },
+];
+
 // --- UTILITAS WATERMARK GAMBAR ---
-const processImageWithWatermark = (file) => {
-  return new Promise((resolve) => {
+const readFileAsDataUrl = (file) =>
+  new Promise((resolve) => {
     const reader = new FileReader();
-    reader.onload = (e) => {
-      const img = new Image();
-      img.onload = () => {
+    reader.onload = (e) => resolve(e.target?.result || null);
+    reader.onerror = () => resolve(null);
+    reader.readAsDataURL(file);
+  });
+
+const processImageWithWatermark = async (file) => {
+  const sourceDataUrl = await readFileAsDataUrl(file);
+  if (!sourceDataUrl) return null;
+
+  return new Promise((resolve) => {
+    const img = new Image();
+    img.onload = () => {
+      try {
         const canvas = document.createElement('canvas');
         // FIX: Kurangkan MAX_WIDTH ke 400px supaya saiz Base64 sangat kecil
         // Ini untuk elak limit 1MB NoSQL Firestore bila kita kumpul 14 gambar dalam 1 dokumen.
         const MAX_WIDTH = 400;
         let width = img.width;
         let height = img.height;
-        
+
         if (width > MAX_WIDTH) {
           height = Math.round((height * MAX_WIDTH) / width);
           width = MAX_WIDTH;
         }
-        
+
         canvas.width = width;
         canvas.height = height;
         const ctx = canvas.getContext('2d');
-        
+        if (!ctx) {
+          resolve(sourceDataUrl);
+          return;
+        }
+
         ctx.drawImage(img, 0, 0, width, height);
 
         ctx.save();
         ctx.translate(width / 2, height / 2);
-        ctx.rotate(-Math.PI / 4); 
-        
+        ctx.rotate(-Math.PI / 4);
+
         const fontSize = Math.floor(width / 15);
         ctx.font = `bold ${fontSize}px 'Space Grotesk', sans-serif`;
-        ctx.fillStyle = "rgba(255, 255, 255, 0.5)"; 
+        ctx.fillStyle = "rgba(255, 255, 255, 0.5)";
         ctx.textAlign = "center";
         ctx.textBaseline = "middle";
         ctx.shadowColor = "rgba(0, 0, 0, 0.5)";
         ctx.shadowOffsetX = 2;
         ctx.shadowOffsetY = 2;
         ctx.shadowBlur = 4;
-        
+
         ctx.fillText("FOR AFWAJA RENTAL ONLY", 0, 0);
-        
-        ctx.font = `bold ${fontSize/2}px 'Space Grotesk', sans-serif`;
+
+        ctx.font = `bold ${fontSize / 2}px 'Space Grotesk', sans-serif`;
         ctx.fillText(new Date().toLocaleDateString('en-MY') + " " + new Date().toLocaleTimeString('en-MY'), 0, fontSize);
-        
+
         ctx.restore();
 
         // FIX: Turunkan kualiti JPEG dari 0.6 ke 0.4 untuk kompresi maksimum
         resolve(canvas.toDataURL('image/jpeg', 0.4));
-      };
-      img.onerror = () => resolve(null); 
-      img.src = e.target.result;
+      } catch (error) {
+        console.warn('Watermark processing fallback applied for image upload.', error);
+        resolve(sourceDataUrl);
+      }
     };
-    reader.onerror = () => resolve(null); 
-    reader.readAsDataURL(file);
+    img.onerror = () => {
+      console.warn('Image format could not be processed with watermark. Falling back to original file.');
+      resolve(sourceDataUrl);
+    };
+    img.src = sourceDataUrl;
   });
+};
+
+const formatCurrency = (amount) => `MYR ${Number(amount || 0).toFixed(2)}`;
+
+const getImageFormatForPdf = (source) => (source?.startsWith('data:image/png') ? 'PNG' : 'JPEG');
+
+const fetchImageAsDataUrl = async (source) => {
+  if (!source) return null;
+  if (source.startsWith('data:')) return source;
+
+  try {
+    const response = await fetch(source);
+    if (!response.ok) return null;
+    const blob = await response.blob();
+    return await new Promise((resolve) => {
+      const reader = new FileReader();
+      reader.onloadend = () => resolve(reader.result || null);
+      reader.onerror = () => resolve(null);
+      reader.readAsDataURL(blob);
+    });
+  } catch (error) {
+    console.warn('Unable to fetch image for agreement PDF.', error);
+    return null;
+  }
+};
+
+const buildAgreementEmailContent = ({ bookingId, customerName, pdfUrl }) => ({
+  subject: `Your Rental Agreement Copy - ${bookingId}`,
+  text: [
+    `Dear ${customerName || 'Customer'},`,
+    '',
+    'Your initial VCR and rental agreement have been recorded successfully.',
+    `Booking ID: ${bookingId}`,
+    '',
+    `Download your agreement copy here: ${pdfUrl}`,
+    '',
+    'Thank you,',
+    'Afwaja Rental',
+  ].join('\n'),
+  html: `
+    <div style="font-family:Arial,sans-serif;background:#f8fafc;padding:24px;color:#0f172a;">
+      <div style="max-width:640px;margin:0 auto;background:#ffffff;border:1px solid #e2e8f0;border-radius:20px;overflow:hidden;">
+        <div style="padding:24px 28px;background:linear-gradient(135deg,#0f172a 0%,#155e75 100%);color:#ffffff;">
+          <p style="margin:0 0 8px;font-size:12px;font-weight:700;letter-spacing:0.08em;">AFWAJA RENTAL</p>
+          <h1 style="margin:0;font-size:28px;line-height:1.2;">Your Rental Agreement Copy Is Ready</h1>
+          <p style="margin:12px 0 0;font-size:15px;line-height:1.6;color:#cffafe;">
+            Your initial VCR and agreement have been recorded successfully for booking ${bookingId}.
+          </p>
+        </div>
+        <div style="padding:28px;">
+          <p style="margin:0 0 20px;font-size:15px;line-height:1.7;color:#334155;">
+            Dear ${customerName || 'Customer'},<br/><br/>
+            Please use the button below to download your agreement copy.
+          </p>
+          <a href="${pdfUrl}" style="display:inline-block;background:#0891b2;color:#ffffff;text-decoration:none;font-weight:700;padding:14px 22px;border-radius:12px;">
+            Download Agreement Copy
+          </a>
+          <p style="margin:20px 0 0;font-size:13px;line-height:1.7;color:#64748b;">
+            If the button above does not work, copy this link into your browser:<br/>
+            <a href="${pdfUrl}" style="color:#0891b2;word-break:break-all;">${pdfUrl}</a>
+          </p>
+        </div>
+      </div>
+    </div>
+  `,
+});
+
+const createInitialAgreementPdf = async ({ booking, vcrImages, signatureBase64 }) => {
+  const pdf = new jsPDF({ unit: 'pt', format: 'a4' });
+  const pageWidth = pdf.internal.pageSize.getWidth();
+  const pageHeight = pdf.internal.pageSize.getHeight();
+  const margin = 40;
+  const contentWidth = pageWidth - margin * 2;
+  const lineHeight = 16;
+  let y = margin;
+
+  const ensureSpace = (spaceNeeded = 50) => {
+    if (y + spaceNeeded > pageHeight - margin) {
+      pdf.addPage();
+      y = margin;
+    }
+  };
+
+  const addWrappedText = (text, options = {}) => {
+    const fontSize = options.fontSize || 10;
+    const color = options.color || '#334155';
+    const indent = options.indent || 0;
+    const gapAfter = options.gapAfter ?? 8;
+    const maxWidth = options.maxWidth || contentWidth - indent;
+    const lines = pdf.splitTextToSize(text, maxWidth);
+    const blockHeight = lines.length * lineHeight;
+    ensureSpace(blockHeight + gapAfter);
+    pdf.setFontSize(fontSize);
+    pdf.setTextColor(color);
+    pdf.text(lines, margin + indent, y);
+    y += blockHeight + gapAfter;
+  };
+
+  const addSectionTitle = (title) => {
+    ensureSpace(26);
+    pdf.setFont('helvetica', 'bold');
+    pdf.setFontSize(13);
+    pdf.setTextColor('#0f172a');
+    pdf.text(title, margin, y);
+    y += 18;
+    pdf.setFont('helvetica', 'normal');
+  };
+
+  const addImageBlock = async ({ title, source, maxHeight = 180 }) => {
+    const dataUrl = await fetchImageAsDataUrl(source);
+    if (!dataUrl) return;
+
+    const image = new Image();
+    const loaded = await new Promise((resolve) => {
+      image.onload = () => resolve(true);
+      image.onerror = () => resolve(false);
+      image.src = dataUrl;
+    });
+    if (!loaded || !image.width || !image.height) return;
+
+    const imageWidth = contentWidth;
+    const ratio = image.height / image.width;
+    const imageHeight = Math.min(maxHeight, imageWidth * ratio);
+
+    ensureSpace(imageHeight + 34);
+    pdf.setFont('helvetica', 'bold');
+    pdf.setFontSize(11);
+    pdf.setTextColor('#0f172a');
+    pdf.text(title, margin, y);
+    y += 12;
+    pdf.addImage(dataUrl, getImageFormatForPdf(dataUrl), margin, y, imageWidth, imageHeight);
+    y += imageHeight + 16;
+    pdf.setFont('helvetica', 'normal');
+  };
+
+  const customer = booking.customer || {};
+  const car = booking.car || {};
+  const bookingId = booking.id || 'AFW-UNKNOWN';
+  const pickupDate = formatDateTime(customer.startDate);
+  const returnDate = formatDateTime(customer.endDate);
+  const summaryRows = [
+    ['Booking ID', bookingId],
+    ['Customer Name', customer.name || '-'],
+    ['Email', customer.email || '-'],
+    ['Phone / WhatsApp', customer.phone || '-'],
+    ['Customer Type', customer.customerType || '-'],
+    ['Vehicle', car.name || '-'],
+    ['Pickup', pickupDate],
+    ['Return', returnDate],
+    ['Pickup Location', customer.pickupLocation || '-'],
+    ['Return Location', customer.returnLocation || '-'],
+    ['Destination', customer.destination || '-'],
+    ['Grand Total', formatCurrency(customer.grandTotal)],
+  ];
+
+  pdf.setFillColor(15, 23, 42);
+  pdf.rect(0, 0, pageWidth, 88, 'F');
+  pdf.setFont('helvetica', 'bold');
+  pdf.setFontSize(24);
+  pdf.setTextColor('#ffffff');
+  pdf.text('Afwaja Rental Agreement', margin, 42);
+  pdf.setFontSize(11);
+  pdf.setTextColor('#cffafe');
+  pdf.text(`Initial VCR Copy | ${bookingId}`, margin, 64);
+  y = 112;
+
+  addSectionTitle('Booking Summary');
+  summaryRows.forEach(([label, value]) => {
+    addWrappedText(`${label}: ${value}`, { fontSize: 10, gapAfter: 6 });
+  });
+
+  y += 4;
+  addSectionTitle('Terms & Conditions');
+  INITIAL_AGREEMENT_TERMS.forEach((section) => {
+    addWrappedText(section.title, { fontSize: 11, color: '#0f172a', gapAfter: 6 });
+    section.bullets.forEach((bullet) => {
+      addWrappedText(`• ${bullet}`, { fontSize: 10, indent: 8, gapAfter: 4 });
+    });
+    y += 4;
+  });
+
+  addSectionTitle('KYC Documents');
+  await addImageBlock({ title: 'ID / Passport', source: booking.documents?.ic });
+  await addImageBlock({ title: 'Driving License / IDP', source: booking.documents?.license });
+  await addImageBlock({ title: 'Supporting Document', source: booking.documents?.bill });
+
+  addSectionTitle('Initial Vehicle Condition Report');
+  await addImageBlock({ title: 'Front View', source: vcrImages.front });
+  await addImageBlock({ title: 'Rear View', source: vcrImages.back });
+  await addImageBlock({ title: 'Left View', source: vcrImages.left });
+  await addImageBlock({ title: 'Right View', source: vcrImages.right });
+  await addImageBlock({ title: 'Dashboard / Odometer', source: vcrImages.odometer });
+
+  addSectionTitle('Customer Digital Signature');
+  await addImageBlock({ title: 'Signature', source: signatureBase64, maxHeight: 120 });
+
+  ensureSpace(40);
+  pdf.setFont('helvetica', 'italic');
+  pdf.setFontSize(9);
+  pdf.setTextColor('#64748b');
+  pdf.text(`Generated on ${new Date().toLocaleString('en-MY')}`, margin, y);
+
+  return pdf.output('datauristring');
 };
 
 // --- FUNGSI UPLOAD KE STORAGE ---
@@ -163,12 +456,31 @@ const formatDateTime = (dateStr) => {
   });
 };
 
+const getGatewayReturnState = () => {
+  if (typeof window === 'undefined') {
+    return { initialView: 'home', bookingId: '' };
+  }
+
+  const params = new URLSearchParams(window.location.search);
+  const status = params.get('status');
+  const toyyibStatus = params.get('status_id');
+  const bookingId = params.get('bookingId') || params.get('order_id') || '';
+  const isPaymentSuccess =
+    Boolean(bookingId) && (status === 'success' || toyyibStatus === '1' || toyyibStatus === '2');
+
+  return {
+    initialView: isPaymentSuccess ? 'thank-you' : 'home',
+    bookingId,
+  };
+};
+
 export default function App() {
   // ==========================================
   // STATE UTAMA APP
   // ==========================================
+  const gatewayReturnState = getGatewayReturnState();
   const [user, setUser] = useState(null);
-  const [currentView, setCurrentView] = useState('home');
+  const [currentView, setCurrentView] = useState(gatewayReturnState.initialView);
   const [isAdmin, setIsAdmin] = useState(false);
   const [showAdminLogin, setShowAdminLogin] = useState(false);
   const [adminPin, setAdminPin] = useState('');
@@ -181,8 +493,8 @@ export default function App() {
   const [bookingDetails, setBookingDetails] = useState({
     name: '', email: '', phone: '', startDate: '', endDate: '', pickupLocation: '', returnLocation: '', destination: '', bankName: '', bankAccount: '', pickupFee: 0, returnFee: 0, totalDays: 0, extraHours: 0, extraHoursFee: 0, totalPrice: 0, appliedDailyRate: 0, discountTier: 'Normal', discountPercentage: 0, deposit: 0, grandTotal: 0, customerType: 'local', paymentMethod: 'fpx'
   });
-  const [currentBookingId, setCurrentBookingId] = useState(null);
-  const [searchTrackId, setSearchTrackId] = useState('');
+  const [currentBookingId, setCurrentBookingId] = useState(gatewayReturnState.bookingId || null);
+  const [searchTrackId, setSearchTrackId] = useState(gatewayReturnState.bookingId || '');
   const [paymentProcessing, setPaymentProcessing] = useState(false);
   const [activeGateway, setActiveGateway] = useState('');
   const [paymentUrl, setPaymentUrl] = useState('');
@@ -334,15 +646,15 @@ export default function App() {
 
       try {
         if ((status === 'success' || toyyibStatus === '1' || toyyibStatus === '2') && bookingId) {
-          await syncPaymentStatusFromGatewayReturn(bookingId, 'success');
           setCurrentBookingId(bookingId);
           setSearchTrackId(bookingId);
           setCurrentView('thank-you');
+          await syncPaymentStatusFromGatewayReturn(bookingId, 'success');
         } else if ((status === 'cancelled' || toyyibStatus === '3') && bookingId) {
-          await syncPaymentStatusFromGatewayReturn(bookingId, 'failed');
-          showNotification('Payment cancelled or failed.', 'error');
           setCurrentBookingId(bookingId);
           setSearchTrackId(bookingId);
+          await syncPaymentStatusFromGatewayReturn(bookingId, 'failed');
+          showNotification('Payment cancelled or failed.', 'error');
         } else if (status === 'cancelled' || toyyibStatus === '3') {
           showNotification('Payment cancelled or failed.', 'error');
         }
@@ -398,10 +710,16 @@ export default function App() {
     e.preventDefault();
     
     const isTourist = bookingDetails.customerType === 'international';
+    const phoneValue = bookingDetails.phone.trim();
     const baseDailyPrice = isTourist ? selectedCar.priceTourist : selectedCar.priceLocal;
     
     const { days, extraHours, extraHoursFee, rentalTotal, totalHours, appliedDailyRate, discountTier, discountPercentage } = getRentalDurationAndCost(bookingDetails.startDate, bookingDetails.endDate, baseDailyPrice);
     
+    if (isTourist && !/^\+\d{7,15}$/.test(phoneValue.replace(/\s+/g, ''))) {
+      showNotification('Please enter a valid WhatsApp number with country code.', 'error');
+      return;
+    }
+
     const now = new Date();
     const pickupDateTime = new Date(bookingDetails.startDate);
     const diffHours = (pickupDateTime - now) / (1000 * 60 * 60);
@@ -844,7 +1162,51 @@ export default function App() {
         'vcr.status': 'completed',
         status: 'Active' 
       });
-      showNotification('VCR and Agreement successfully recorded.', 'success');
+
+      let agreementPdfUrl = null;
+
+      try {
+        const pdfDataUri = await createInitialAgreementPdf({
+          booking: trackedBooking,
+          vcrImages: vcrDocs,
+          signatureBase64,
+        });
+
+        const agreementPath = `agreements/${trackedBooking.id}/initial-agreement.pdf`;
+        agreementPdfUrl = await uploadFileToStorage(pdfDataUri, agreementPath);
+
+        await updateDoc(bookingRef, {
+          'agreement.initialPdfUrl': agreementPdfUrl,
+          'agreement.generatedAt': new Date().toISOString(),
+          'agreement.status': 'available',
+        });
+
+        if (trackedBooking.customer?.email && agreementPdfUrl) {
+          const mailRef = doc(db, 'mail', `${trackedBooking.id}__initial_agreement_ready`);
+          const message = buildAgreementEmailContent({
+            bookingId: trackedBooking.id,
+            customerName: trackedBooking.customer?.name,
+            pdfUrl: agreementPdfUrl,
+          });
+
+          await setDoc(mailRef, {
+            to: trackedBooking.customer.email,
+            message,
+            eventKey: 'initial_agreement_ready',
+            bookingId: trackedBooking.id,
+            audience: 'customer',
+            createdAt: new Date().toISOString(),
+            delivery: {
+              status: 'queued',
+            },
+          });
+        }
+
+        showNotification('VCR and agreement successfully recorded.', 'success');
+      } catch (agreementError) {
+        console.error('Agreement generation error:', agreementError);
+        showNotification('VCR saved, but the agreement link could not be prepared automatically.', 'error');
+      }
     } catch (err) {
       console.error("VCR Upload Error:", err);
       showNotification('Error saving VCR.', 'error');
@@ -1280,9 +1642,22 @@ export default function App() {
                   </div>
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div>
-                      <label className="block text-sm font-bold text-slate-700 mb-1.5">Phone No.</label>
-                      <input required type="tel" placeholder="0123456789" className="w-full bg-white border border-slate-200 rounded-xl px-4 py-3 focus:ring-2 focus:ring-cyan-500 font-medium" 
-                        value={bookingDetails.phone} onChange={e => setBookingDetails({...bookingDetails, phone: e.target.value})} />
+                      <label className="block text-sm font-bold text-slate-700 mb-1.5">
+                        {isTourist ? 'Phone No. / WhatsApp' : 'Phone No.'}
+                      </label>
+                      <input
+                        required
+                        type="tel"
+                        placeholder={isTourist ? '+6281234567890' : '0123456789'}
+                        className="w-full bg-white border border-slate-200 rounded-xl px-4 py-3 focus:ring-2 focus:ring-cyan-500 font-medium"
+                        value={bookingDetails.phone}
+                        onChange={e => setBookingDetails({...bookingDetails, phone: e.target.value})}
+                      />
+                      <p className="text-xs text-orange-600 font-bold mt-1.5">
+                        {isTourist
+                          ? 'Note: Please include your country code and use a WhatsApp number only.'
+                          : 'Note: Please enter a phone number with WhatsApp only.'}
+                      </p>
                     </div>
                     <div>
                       <label className="block text-sm font-bold text-slate-700 mb-1.5">Email</label>
