@@ -20,22 +20,31 @@ import {
 const BACKEND_API_URL = 'https://createpaymentintent-shqyg6ge4q-uc.a.run.app'; 
 
 // --- INISIALISASI FIREBASE ---
-const fallbackConfig = {
-  apiKey: "AIzaSyAVcnZldDUR53E9jibUmv0z12I3zAZUo8k",
-  authDomain: "afwaja-car-rental.firebaseapp.com",
-  projectId: "afwaja-car-rental",
-  storageBucket: "afwaja-car-rental.firebasestorage.app",
-  messagingSenderId: "646120573637",
-  appId: "1:646120573637:web:82f91fff224e7bf7b77eac",
-  measurementId: "G-2T6TF6T344"
+const runtimeFirebaseConfig =
+  typeof globalThis.__firebase_config !== 'undefined' && globalThis.__firebase_config
+    ? JSON.parse(globalThis.__firebase_config)
+    : null;
+
+const envFirebaseConfig = {
+  apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
+  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN,
+  projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID,
+  storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET,
+  messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID,
+  appId: import.meta.env.VITE_FIREBASE_APP_ID,
+  measurementId: import.meta.env.VITE_FIREBASE_MEASUREMENT_ID,
 };
-const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : fallbackConfig;
+
+const firebaseConfig = runtimeFirebaseConfig || envFirebaseConfig;
 
 const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
 const db = getFirestore(app);
 const storage = getStorage(app); 
-const appId = typeof __app_id !== 'undefined' ? __app_id : 'afwaja-car-rental-app';
+const appId =
+  typeof globalThis.__app_id !== 'undefined'
+    ? globalThis.__app_id
+    : import.meta.env.VITE_APP_ID || 'afwaja-car-rental-app';
 
 // --- DATA KENDARAAN (MOCK DATA) ---
 const INITIAL_CARS = [
