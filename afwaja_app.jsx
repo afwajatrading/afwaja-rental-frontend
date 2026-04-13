@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { initializeApp } from 'firebase/app';
 import { getAuth, signInAnonymously, onAuthStateChanged, signInWithCustomToken } from 'firebase/auth';
-import { getFirestore, collection, addDoc, updateDoc, doc, onSnapshot, getDoc } from 'firebase/firestore';
+import { getFirestore, collection, addDoc, updateDoc, doc, onSnapshot, getDoc, getDocs, query, where } from 'firebase/firestore';
 import { getStorage, ref, uploadString, getDownloadURL } from 'firebase/storage';
 import { 
   Car, Calendar, CreditCard, FileText, LayoutDashboard, 
@@ -48,29 +48,29 @@ const appId =
 
 // --- DATA KENDARAAN (MOCK DATA) ---
 const INITIAL_CARS = [
-  { id: 1, name: 'Perodua Axia (New)', category: 'Compact', priceLocal: 135, priceTourist: 160, depositLocal: 100, depositTourist: 200, seats: 5, transmission: 'Auto', fuel: 'Petrol', year: 2023, color: 'from-sky-400 to-cyan-500', image: 'https://platform-bcl.bsb-cdn.com/media/2026/03/01KKWYYY464W0Y8R13A38NSE9R.png' },
-  { id: 2, name: 'Perodua Axia (Old)', category: 'Compact', priceLocal: 120, priceTourist: 145, depositLocal: 100, depositTourist: 200, seats: 5, transmission: 'Auto', fuel: 'Petrol', year: 2019, color: 'from-slate-400 to-slate-600', image: 'https://platform-bcl.bsb-cdn.com/media/2026/04/01KN3CJ7HC79QPZVYHBY70C1K0.png' },
-  { id: 3, name: 'Perodua Myvi', category: 'Compact', priceLocal: 160, priceTourist: 190, depositLocal: 100, depositTourist: 200, seats: 5, transmission: 'Auto', fuel: 'Petrol', year: 2023, color: 'from-cyan-500 to-teal-600', image: 'https://platform-bcl.bsb-cdn.com/media/2026/03/01KKWZJG900QSQ5EYS55YN89G3.png' },
-  { id: 4, name: 'Perodua Bezza', category: 'Sedan', priceLocal: 160, priceTourist: 190, depositLocal: 100, depositTourist: 200, seats: 5, transmission: 'Auto', fuel: 'Petrol', year: 2023, color: 'from-blue-500 to-blue-700', image: 'https://platform-bcl.bsb-cdn.com/media/2026/03/01KKWYYV66KVSR5N9F1HJCE4AB.png' },
-  { id: 5, name: 'Perodua Ativa', category: 'SUV', priceLocal: 230, priceTourist: 275, depositLocal: 100, depositTourist: 200, seats: 5, transmission: 'Auto', fuel: 'Petrol', year: 2023, color: 'from-red-500 to-red-700', image: 'https://platform-bcl.bsb-cdn.com/media/2026/03/01KKX072973PBJTX8HP6PPYB8D.png' },
-  { id: 6, name: 'Toyota Yaris', category: 'Compact', priceLocal: 250, priceTourist: 300, depositLocal: 200, depositTourist: 400, seats: 5, transmission: 'Auto', fuel: 'Petrol', year: 2023, color: 'from-green-500 to-emerald-700', image: 'https://platform-bcl.bsb-cdn.com/media/2026/03/01KKX0MMR29TEHHNPFD5YJ5W40.png' },
-  { id: 7, name: 'Honda City Hatchback', category: 'Compact', priceLocal: 250, priceTourist: 300, depositLocal: 200, depositTourist: 400, seats: 5, transmission: 'Auto', fuel: 'Petrol', year: 2023, color: 'from-gray-700 to-gray-900', image: 'https://platform-bcl.bsb-cdn.com/media/2026/03/01KKX151H50FK6SNJPM3N3XMF1.png' },
-  { id: 8, name: 'Toyota Vios (3rd Gen)', category: 'Sedan', priceLocal: 200, priceTourist: 240, depositLocal: 200, depositTourist: 400, seats: 5, transmission: 'Auto', fuel: 'Petrol', year: 2019, color: 'from-slate-500 to-slate-700', image: 'https://platform-bcl.bsb-cdn.com/media/2026/03/01KKX33KNKB5BC1N7YE2R5QPBK.png' },
-  { id: 9, name: 'Toyota Vios (4th Gen)', category: 'Sedan', priceLocal: 250, priceTourist: 300, depositLocal: 200, depositTourist: 400, seats: 5, transmission: 'Auto', fuel: 'Petrol', year: 2023, color: 'from-red-600 to-rose-800', image: 'https://platform-bcl.bsb-cdn.com/media/2026/03/01KKX33MEZV13X1DMJMSHTV6QS.png' },
-  { id: 10, name: 'Honda City Sedan', category: 'Sedan', priceLocal: 250, priceTourist: 300, depositLocal: 200, depositTourist: 400, seats: 5, transmission: 'Auto', fuel: 'Petrol', year: 2023, color: 'from-slate-800 to-black', image: 'https://platform-bcl.bsb-cdn.com/media/2026/03/01KKX33JX62ETJ8Y2KK36H3N7R.png' },
-  { id: 11, name: 'Perodua Aruz', category: 'SUV', priceLocal: 280, priceTourist: 335, depositLocal: 300, depositTourist: 600, seats: 7, transmission: 'Auto', fuel: 'Petrol', year: 2023, color: 'from-teal-600 to-teal-800', image: 'https://platform-bcl.bsb-cdn.com/media/2026/03/01KKZC8ZPC5QE8PXWPHZH4T2M1.png' },
-  { id: 12, name: 'Proton X50', category: 'SUV', priceLocal: 300, priceTourist: 360, depositLocal: 300, depositTourist: 600, seats: 5, transmission: 'Auto', fuel: 'Petrol', year: 2023, color: 'from-orange-500 to-red-600', image: 'https://platform-bcl.bsb-cdn.com/media/2026/03/01KKZC8YZAWNJG1SSXPQG1BS93.png' },
-  { id: 13, name: 'Honda HRV', category: 'SUV', priceLocal: 400, priceTourist: 480, depositLocal: 300, depositTourist: 600, seats: 5, transmission: 'Auto', fuel: 'Petrol', year: 2023, color: 'from-gray-800 to-gray-900', image: 'https://platform-bcl.bsb-cdn.com/media/2026/03/01KKZC90N57WTHVTVK6E1RTPNN.png' },
-  { id: 14, name: 'Perodua Alza', category: 'MPV', priceLocal: 250, priceTourist: 300, depositLocal: 300, depositTourist: 600, seats: 7, transmission: 'Auto', fuel: 'Petrol', year: 2023, color: 'from-indigo-500 to-indigo-700', image: 'https://platform-bcl.bsb-cdn.com/media/2026/03/01KKZC8Y7EBYTG228GS535B4H1.png' },
-  { id: 15, name: 'Nissan Serena', category: 'MPV', priceLocal: 480, priceTourist: 575, depositLocal: 300, depositTourist: 600, seats: 7, transmission: 'Auto', fuel: 'Hybrid', year: 2023, color: 'from-slate-700 to-slate-800', image: 'https://platform-bcl.bsb-cdn.com/media/2026/03/01KKZC8WGPF7VCSQRAG17YJNFB.png' },
-  { id: 16, name: 'Mitsubishi Xpander', category: 'MPV', priceLocal: 300, priceTourist: 360, depositLocal: 300, depositTourist: 600, seats: 7, transmission: 'Auto', fuel: 'Petrol', year: 2023, color: 'from-gray-600 to-gray-800', image: 'https://platform-bcl.bsb-cdn.com/media/2026/03/01KKZC8TYHE82E369TD1R5YV4D.png' },
-  { id: 17, name: 'Proton X70', category: 'SUV', priceLocal: 350, priceTourist: 420, depositLocal: 300, depositTourist: 600, seats: 5, transmission: 'Auto', fuel: 'Petrol', year: 2023, color: 'from-slate-600 to-slate-700', image: 'https://platform-bcl.bsb-cdn.com/media/2026/03/01KKZC8VRH35HS1DKGP9W4GA2V.png' },
-  { id: 18, name: 'Honda CRV', category: 'SUV', priceLocal: 450, priceTourist: 540, depositLocal: 300, depositTourist: 600, seats: 5, transmission: 'Auto', fuel: 'Petrol', year: 2023, color: 'from-slate-800 to-black', image: 'https://platform-bcl.bsb-cdn.com/media/2026/03/01KKZC8SEWFWM9X8JC4EF4E5TS.png' },
-  { id: 19, name: 'Toyota Innova Zenix', category: 'MPV', priceLocal: 550, priceTourist: 660, depositLocal: 300, depositTourist: 600, seats: 7, transmission: 'Auto', fuel: 'Hybrid', year: 2023, color: 'from-cyan-700 to-cyan-900', image: 'https://platform-bcl.bsb-cdn.com/media/2026/03/01KKZC8T7344GVPKANFVM7F704.png' },
-  { id: 20, name: 'Toyota Vellfire (3rd Gen)', category: 'MPV', priceLocal: 700, priceTourist: 840, depositLocal: 400, depositTourist: 800, seats: 7, transmission: 'Auto', fuel: 'Petrol', year: 2020, color: 'from-slate-800 to-black', image: 'https://platform-bcl.bsb-cdn.com/media/2026/03/01KKZCAFC7J7YSC13V3WCX81J5.png' },
-  { id: 21, name: 'Toyota Vellfire (4th Gen)', category: 'MPV', priceLocal: 1200, priceTourist: 1440, depositLocal: 400, depositTourist: 800, seats: 7, transmission: 'Auto', fuel: 'Petrol', year: 2023, color: 'from-gray-900 to-black', image: 'https://platform-bcl.bsb-cdn.com/media/2026/03/01KKZCAEYJWD3N27BBWYGEP483.png' },
-  { id: 22, name: 'Hyundai Staria', category: 'MPV', priceLocal: 600, priceTourist: 720, depositLocal: 400, depositTourist: 800, seats: 7, transmission: 'Auto', fuel: 'Diesel', year: 2023, color: 'from-blue-800 to-blue-950', image: 'https://platform-bcl.bsb-cdn.com/media/2026/03/01KKZCAE5QM4KX3RD60QMAZ9PN.png' },
-  { id: 23, name: 'Hyundai Starex', category: 'MPV', priceLocal: 500, priceTourist: 600, depositLocal: 400, depositTourist: 800, seats: 11, transmission: 'Auto', fuel: 'Diesel', year: 2021, color: 'from-slate-700 to-slate-900', image: 'https://platform-bcl.bsb-cdn.com/media/2026/03/01KKZCADDG95R03GHZJ22TR8PD.png' }
+  { id: 1, name: 'Perodua Axia (New)', category: 'Compact', priceLocal: 135, priceTourist: 160, depositLocal: 100, depositTourist: 200, seats: 5, transmission: 'Auto', fuel: 'Petrol', year: 2023, color: 'from-sky-400 to-cyan-500', image: 'https://platform-bcl.bsb-cdn.com/media/2026/04/01KP2KRRG31583SYNP78CEK0XS.png' },
+  { id: 2, name: 'Perodua Axia (Old)', category: 'Compact', priceLocal: 120, priceTourist: 145, depositLocal: 100, depositTourist: 200, seats: 5, transmission: 'Auto', fuel: 'Petrol', year: 2019, color: 'from-sky-400 to-cyan-500', image: 'https://platform-bcl.bsb-cdn.com/media/2026/04/01KP2NBPFBV38BFRPQ26N1YF6G.png' },
+  { id: 3, name: 'Perodua Myvi', category: 'Compact', priceLocal: 160, priceTourist: 190, depositLocal: 100, depositTourist: 200, seats: 5, transmission: 'Auto', fuel: 'Petrol', year: 2023, color: 'from-sky-400 to-cyan-500', image: 'https://platform-bcl.bsb-cdn.com/media/2026/04/01KP2PZ2F2FX5K3FV79TBZ0VRK.png' },
+  { id: 4, name: 'Perodua Bezza', category: 'Sedan', priceLocal: 160, priceTourist: 190, depositLocal: 100, depositTourist: 200, seats: 5, transmission: 'Auto', fuel: 'Petrol', year: 2023, color: 'from-sky-400 to-cyan-500', image: 'https://platform-bcl.bsb-cdn.com/media/2026/04/01KP2NBQA2YBK2WEXG2S996C8P.png' },
+  { id: 5, name: 'Perodua Ativa', category: 'SUV', priceLocal: 230, priceTourist: 275, depositLocal: 100, depositTourist: 200, seats: 5, transmission: 'Auto', fuel: 'Petrol', year: 2023, color: 'from-sky-400 to-cyan-500', image: 'https://platform-bcl.bsb-cdn.com/media/2026/04/01KP2NBPXB7QDQK77S89SC316P.png' },
+  { id: 6, name: 'Toyota Yaris', category: 'Compact', priceLocal: 250, priceTourist: 300, depositLocal: 200, depositTourist: 400, seats: 5, transmission: 'Auto', fuel: 'Petrol', year: 2023, color: 'from-sky-400 to-cyan-500', image: 'https://platform-bcl.bsb-cdn.com/media/2026/04/01KP2PY3W1F1P5309YJ6N0KF8W.png' },
+  { id: 7, name: 'Honda City Hatchback', category: 'Compact', priceLocal: 250, priceTourist: 300, depositLocal: 200, depositTourist: 400, seats: 5, transmission: 'Auto', fuel: 'Petrol', year: 2023, color: 'from-sky-400 to-cyan-500', image: 'https://platform-bcl.bsb-cdn.com/media/2026/04/01KP2NCSS8QBVKBTRRK4SN8P12.png' },
+  { id: 8, name: 'Toyota Vios (3rd Gen)', category: 'Sedan', priceLocal: 200, priceTourist: 240, depositLocal: 200, depositTourist: 400, seats: 5, transmission: 'Auto', fuel: 'Petrol', year: 2019, color: 'from-sky-400 to-cyan-500', image: 'https://platform-bcl.bsb-cdn.com/media/2026/04/01KP2PY15JFRHXTY20R1FGAZJT.png' },
+  { id: 9, name: 'Toyota Vios (4th Gen)', category: 'Sedan', priceLocal: 250, priceTourist: 300, depositLocal: 200, depositTourist: 400, seats: 5, transmission: 'Auto', fuel: 'Petrol', year: 2023, color: 'from-sky-400 to-cyan-500', image: 'https://platform-bcl.bsb-cdn.com/media/2026/04/01KP2PY23S26W22ATMH2RMY4FM.png' },
+  { id: 10, name: 'Honda City Sedan', category: 'Sedan', priceLocal: 250, priceTourist: 300, depositLocal: 200, depositTourist: 400, seats: 5, transmission: 'Auto', fuel: 'Petrol', year: 2023, color: 'from-sky-400 to-cyan-500', image: 'https://platform-bcl.bsb-cdn.com/media/2026/04/01KP2NCS662MEVPY7YBA73JZVX.png' },
+  { id: 11, name: 'Perodua Aruz', category: 'SUV', priceLocal: 280, priceTourist: 335, depositLocal: 300, depositTourist: 600, seats: 7, transmission: 'Auto', fuel: 'Petrol', year: 2023, color: 'from-sky-400 to-cyan-500', image: 'https://platform-bcl.bsb-cdn.com/media/2026/04/01KP2NBNM56ZB8SFR079M76GAR.png' },
+  { id: 12, name: 'Proton X50', category: 'SUV', priceLocal: 300, priceTourist: 360, depositLocal: 300, depositTourist: 600, seats: 5, transmission: 'Auto', fuel: 'Petrol', year: 2023, color: 'from-sky-400 to-cyan-500', image: 'https://platform-bcl.bsb-cdn.com/media/2026/04/01KP2PY2JDHK54NMSY88V8WDSZ.png' },
+  { id: 13, name: 'Honda HRV', category: 'SUV', priceLocal: 400, priceTourist: 480, depositLocal: 300, depositTourist: 600, seats: 5, transmission: 'Auto', fuel: 'Petrol', year: 2023, color: 'from-sky-400 to-cyan-500', image: 'https://platform-bcl.bsb-cdn.com/media/2026/04/01KP2NCT6G5J5KTSV9VJBGJGW3.png' },
+  { id: 14, name: 'Perodua Alza', category: 'MPV', priceLocal: 250, priceTourist: 300, depositLocal: 300, depositTourist: 600, seats: 7, transmission: 'Auto', fuel: 'Petrol', year: 2023, color: 'from-sky-400 to-cyan-500', image: 'https://platform-bcl.bsb-cdn.com/media/2026/04/01KP2NBP1TS612Y5JDK3HWTXY7.png' },
+  { id: 15, name: 'Nissan Serena', category: 'MPV', priceLocal: 480, priceTourist: 575, depositLocal: 300, depositTourist: 600, seats: 7, transmission: 'Auto', fuel: 'Hybrid', year: 2023, color: 'from-sky-400 to-cyan-500', image: 'https://platform-bcl.bsb-cdn.com/media/2026/04/01KP2PZ3S9DWW3B66GNEAQZ2ZC.png' },
+  { id: 16, name: 'Mitsubishi Xpander', category: 'MPV', priceLocal: 300, priceTourist: 360, depositLocal: 300, depositTourist: 600, seats: 7, transmission: 'Auto', fuel: 'Petrol', year: 2023, color: 'from-sky-400 to-cyan-500', image: 'https://platform-bcl.bsb-cdn.com/media/2026/04/01KP2PY2ZSQF6XAK9FCFRRDVFD.png' },
+  { id: 17, name: 'Proton X70', category: 'SUV', priceLocal: 350, priceTourist: 420, depositLocal: 300, depositTourist: 600, seats: 5, transmission: 'Auto', fuel: 'Petrol', year: 2023, color: 'from-sky-400 to-cyan-500', image: 'https://platform-bcl.bsb-cdn.com/media/2026/04/01KP2PY3D8FPKQV1JTS3A34K27.png' },
+  { id: 18, name: 'Honda CRV', category: 'SUV', priceLocal: 450, priceTourist: 540, depositLocal: 300, depositTourist: 600, seats: 5, transmission: 'Auto', fuel: 'Petrol', year: 2023, color: 'from-sky-400 to-cyan-500', image: 'https://platform-bcl.bsb-cdn.com/media/2026/04/01KP2NCTQVT8TEJQ92W1RMC8AP.png' },
+  { id: 19, name: 'Toyota Innova Zenix', category: 'MPV', priceLocal: 550, priceTourist: 660, depositLocal: 300, depositTourist: 600, seats: 7, transmission: 'Auto', fuel: 'Hybrid', year: 2023, color: 'from-sky-400 to-cyan-500', image: 'https://platform-bcl.bsb-cdn.com/media/2026/04/01KP2PZ2YH481ZY4XJJYZWMN1Q.png' },
+  { id: 20, name: 'Toyota Vellfire (3rd Gen)', category: 'MPV', priceLocal: 700, priceTourist: 840, depositLocal: 400, depositTourist: 800, seats: 7, transmission: 'Auto', fuel: 'Petrol', year: 2020, color: 'from-sky-400 to-cyan-500', image: 'https://platform-bcl.bsb-cdn.com/media/2026/04/01KP2NBMRMK1DBAAZ9JC6GJJDS.png' },
+  { id: 21, name: 'Toyota Vellfire (4th Gen)', category: 'MPV', priceLocal: 1200, priceTourist: 1440, depositLocal: 400, depositTourist: 800, seats: 7, transmission: 'Auto', fuel: 'Petrol', year: 2023, color: 'from-sky-400 to-cyan-500', image: 'https://platform-bcl.bsb-cdn.com/media/2026/04/01KP2NBN72PZMHH0DSWHR8NMMR.png' },
+  { id: 22, name: 'Hyundai Staria', category: 'MPV', priceLocal: 600, priceTourist: 720, depositLocal: 400, depositTourist: 800, seats: 7, transmission: 'Auto', fuel: 'Diesel', year: 2023, color: 'from-sky-400 to-cyan-500', image: 'https://platform-bcl.bsb-cdn.com/media/2026/04/01KP2PY1ND0V1BWT3KYE7E8BKA.png' },
+  { id: 23, name: 'Hyundai Starex', category: 'MPV', priceLocal: 500, priceTourist: 600, depositLocal: 400, depositTourist: 800, seats: 11, transmission: 'Auto', fuel: 'Diesel', year: 2021, color: 'from-sky-400 to-cyan-500', image: 'https://platform-bcl.bsb-cdn.com/media/2026/04/01KP2PZ3C702T0MXM8WSTKG0YA.png' }
 ];
 
 const LOCATIONS = [
@@ -97,7 +97,9 @@ const processImageWithWatermark = (file) => {
       const img = new Image();
       img.onload = () => {
         const canvas = document.createElement('canvas');
-        const MAX_WIDTH = 800;
+        // FIX: Kurangkan MAX_WIDTH ke 400px supaya saiz Base64 sangat kecil
+        // Ini untuk elak limit 1MB NoSQL Firestore bila kita kumpul 14 gambar dalam 1 dokumen.
+        const MAX_WIDTH = 400;
         let width = img.width;
         let height = img.height;
         
@@ -133,7 +135,8 @@ const processImageWithWatermark = (file) => {
         
         ctx.restore();
 
-        resolve(canvas.toDataURL('image/jpeg', 0.6));
+        // FIX: Turunkan kualiti JPEG dari 0.6 ke 0.4 untuk kompresi maksimum
+        resolve(canvas.toDataURL('image/jpeg', 0.4));
       };
       img.onerror = () => resolve(null); 
       img.src = e.target.result;
@@ -151,12 +154,21 @@ const uploadFileToStorage = async (base64, path) => {
   return await getDownloadURL(storageRef);
 };
 
+// --- UTILITAS FORMAT TARIKH ---
+const formatDateTime = (dateStr) => {
+  if (!dateStr) return '-';
+  return new Date(dateStr).toLocaleString('en-MY', {
+    day: '2-digit', month: 'short', year: 'numeric',
+    hour: '2-digit', minute: '2-digit', hour12: true
+  });
+};
+
 export default function App() {
   // ==========================================
   // STATE UTAMA APP
   // ==========================================
   const [user, setUser] = useState(null);
-  const [currentView, setCurrentView] = useState('home'); 
+  const [currentView, setCurrentView] = useState('home');
   const [isAdmin, setIsAdmin] = useState(false);
   const [showAdminLogin, setShowAdminLogin] = useState(false);
   const [adminPin, setAdminPin] = useState('');
@@ -167,7 +179,7 @@ export default function App() {
   const [fleetPricingMode, setFleetPricingMode] = useState('local');
   const [selectedCar, setSelectedCar] = useState(null);
   const [bookingDetails, setBookingDetails] = useState({
-    name: '', email: '', phone: '', startDate: '', endDate: '', pickupLocation: '', returnLocation: '', destination: '', bankName: '', bankAccount: '', pickupFee: 0, returnFee: 0, totalDays: 0, totalPrice: 0, deposit: 0, grandTotal: 0, customerType: 'local', paymentMethod: 'fpx'
+    name: '', email: '', phone: '', startDate: '', endDate: '', pickupLocation: '', returnLocation: '', destination: '', bankName: '', bankAccount: '', pickupFee: 0, returnFee: 0, totalDays: 0, extraHours: 0, extraHoursFee: 0, totalPrice: 0, appliedDailyRate: 0, discountTier: 'Normal', discountPercentage: 0, deposit: 0, grandTotal: 0, customerType: 'local', paymentMethod: 'fpx'
   });
   const [currentBookingId, setCurrentBookingId] = useState(null);
   const [searchTrackId, setSearchTrackId] = useState('');
@@ -190,6 +202,11 @@ export default function App() {
   const [supplierDetails, setSupplierDetails] = useState({ name: '', cost: '' });
   const [notifications, setNotifications] = useState([]);
   const [kycType, setKycType] = useState('local');
+  const [contactSending, setContactSending] = useState(false);
+  
+  // FIX: Memindahkan state ini dari BookingView ke parent (App) 
+  // agar urutan hooks React (Rules of Hooks) tetap konsisten.
+  const [readingDoc, setReadingDoc] = useState(null);
 
   const trackedBooking = searchTrackId ? bookings.find(b => b.id === searchTrackId) : null;
 
@@ -201,19 +218,58 @@ export default function App() {
     }, 5000); 
   };
 
-  const calculateDays = (start, end) => {
-    if (!start || !end) return 0;
+  // --- LOGIK HARGA & DISKAUN AUTOTMATIK ---
+  const getRentalDurationAndCost = (start, end, baseDailyRate) => {
+    if (!start || !end) return { days: 0, extraHours: 0, extraHoursFee: 0, rentalTotal: 0, totalHours: 0, appliedDailyRate: baseDailyRate, discountTier: 'Normal', discountPercentage: 0 };
     const diff = new Date(end) - new Date(start);
-    const days = Math.ceil(diff / (1000 * 60 * 60 * 24));
-    return days > 0 ? days : 0;
+    if (diff <= 0) return { days: 0, extraHours: 0, extraHoursFee: 0, rentalTotal: 0, totalHours: 0, appliedDailyRate: baseDailyRate, discountTier: 'Normal', discountPercentage: 0 };
+
+    const totalHours = diff / (1000 * 60 * 60);
+    let days = Math.floor(totalHours / 24);
+    let extraHours = Math.ceil(totalHours % 24);
+
+    let multiplier = 1.0;
+    let discountTier = 'Normal Rate';
+    let discountPercentage = 0;
+
+    // Sistem Diskaun Afwaja
+    if (days >= 30) {
+      multiplier = 0.55; // 45% Diskaun (Bulanan)
+      discountTier = 'Monthly Rate';
+      discountPercentage = 45;
+    } else if (days >= 7) {
+      multiplier = 0.80; // 20% Diskaun (Mingguan)
+      discountTier = 'Weekly Rate';
+      discountPercentage = 20;
+    } else if (days >= 3) {
+      multiplier = 0.90; // 10% Diskaun (3 Hari Ke Atas)
+      discountTier = '3+ Days Rate';
+      discountPercentage = 10;
+    }
+
+    const appliedDailyRate = Math.round(baseDailyRate * multiplier);
+
+    // Cas tambahan: 10% dari harga harian SEMASA (selepas diskaun) untuk setiap jam.
+    const hourlyRate = Math.round(appliedDailyRate / 10);
+    let extraHoursFee = extraHours * hourlyRate;
+
+    // Kalau cas lebih masa sama atau lebih dari harga sehari, terus kira sebagai 1 hari penuh.
+    if (extraHoursFee >= appliedDailyRate) {
+      days += 1;
+      extraHours = 0;
+      extraHoursFee = 0;
+    }
+
+    const rentalTotal = (days * appliedDailyRate) + extraHoursFee;
+    return { days, extraHours, extraHoursFee, rentalTotal, totalHours, appliedDailyRate, discountTier, discountPercentage };
   };
 
   // --- USE EFFECTS ---
   useEffect(() => {
     const initAuth = async () => {
       try {
-        if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
-          await signInWithCustomToken(auth, __initial_auth_token);
+        if (typeof globalThis.__initial_auth_token !== 'undefined' && globalThis.__initial_auth_token) {
+          await signInWithCustomToken(auth, globalThis.__initial_auth_token);
         } else {
           await signInAnonymously(auth);
         }
@@ -225,27 +281,81 @@ export default function App() {
     const unsubscribe = onAuthStateChanged(auth, setUser);
     return () => unsubscribe();
   }, []);
+
   // --- TANGKAP URL DARI TOYYIBPAY & STRIPE ---
   useEffect(() => {
-    const params = new URLSearchParams(window.location.search);
-    
-    const status = params.get('status'); // Parameter dari Stripe
-    const toyyibStatus = params.get('status_id'); // Parameter dari ToyyibPay (1=Success, 2=Pending, 3=Failed)
-    
-    const bookingId = params.get('bookingId') || params.get('order_id');
+    if (!user) return;
 
-    // Kalau Stripe success ATAU Toyyibpay success (1) / pending (2)
-    if ((status === 'success' || toyyibStatus === '1' || toyyibStatus === '2') && bookingId) {
-      setCurrentBookingId(bookingId);
-      setSearchTrackId(bookingId);
-      setCurrentView('thank-you'); // Terus buka Thank You Page
-      // Buang parameter dari URL supaya nampak kemas
-      window.history.replaceState(null, '', window.location.pathname);
-    } else if (status === 'cancelled' || toyyibStatus === '3') {
-      showNotification('Payment cancelled or failed.', 'error');
-      window.history.replaceState(null, '', window.location.pathname);
-    }
-  }, []);
+    const syncGatewayReturn = async () => {
+      const findBookingDocByBookingId = async (bookingId) => {
+        if (!bookingId) return null;
+        const bookingsRef = collection(db, 'artifacts', appId, 'public', 'data', 'bookings');
+        const bookingQuery = query(bookingsRef, where('id', '==', bookingId));
+        const bookingSnapshot = await getDocs(bookingQuery);
+        return bookingSnapshot.docs[0] || null;
+      };
+
+      const syncPaymentStatusFromGatewayReturn = async (bookingId, nextStatus) => {
+        const bookingDoc = await findBookingDocByBookingId(bookingId);
+        if (!bookingDoc) return false;
+
+        const currentBooking = bookingDoc.data();
+        const currentStatus = currentBooking.payment?.status;
+        if (currentStatus === nextStatus) return true;
+
+        const updatedPayment = {
+          ...(currentBooking.payment || {}),
+          status: nextStatus,
+          updatedAt: new Date().toISOString(),
+          lastResult:
+            nextStatus === 'success' ? 'gateway_confirmed' : 'gateway_failed_or_cancelled',
+        };
+
+        if (nextStatus === 'success') {
+          updatedPayment.confirmedAt = new Date().toISOString();
+          updatedPayment.failureReason = null;
+        } else {
+          updatedPayment.failureReason = 'cancelled_or_failed';
+        }
+
+        await updateDoc(bookingDoc.ref, {
+          payment: updatedPayment,
+        });
+
+        return true;
+      };
+
+      const params = new URLSearchParams(window.location.search);
+      const status = params.get('status');
+      const toyyibStatus = params.get('status_id');
+      const bookingId = params.get('bookingId') || params.get('order_id');
+
+      if (!status && !toyyibStatus) return;
+
+      try {
+        if ((status === 'success' || toyyibStatus === '1' || toyyibStatus === '2') && bookingId) {
+          await syncPaymentStatusFromGatewayReturn(bookingId, 'success');
+          setCurrentBookingId(bookingId);
+          setSearchTrackId(bookingId);
+          setCurrentView('thank-you');
+        } else if ((status === 'cancelled' || toyyibStatus === '3') && bookingId) {
+          await syncPaymentStatusFromGatewayReturn(bookingId, 'failed');
+          showNotification('Payment cancelled or failed.', 'error');
+          setCurrentBookingId(bookingId);
+          setSearchTrackId(bookingId);
+        } else if (status === 'cancelled' || toyyibStatus === '3') {
+          showNotification('Payment cancelled or failed.', 'error');
+        }
+      } catch (error) {
+        console.error('Failed to sync payment status from gateway return:', error);
+        showNotification('Unable to sync payment status automatically.', 'error');
+      } finally {
+        window.history.replaceState(null, '', window.location.pathname);
+      }
+    };
+
+    syncGatewayReturn();
+  }, [user]);
 
   useEffect(() => {
     if (!user) return;
@@ -279,45 +389,50 @@ export default function App() {
   // --- HANDLERS ---
   const handleBookNow = (car) => {
     setSelectedCar(car);
-    setBookingDetails({ ...bookingDetails, startDate: '', endDate: '', pickupLocation: '', returnLocation: '', destination: '', bankName: '', bankAccount: '', pickupFee: 0, returnFee: 0, totalDays: 0, totalPrice: 0, deposit: 0, grandTotal: 0, customerType: fleetPricingMode, paymentMethod: fleetPricingMode === 'local' ? 'fpx' : 'card' });
+    setBookingDetails({ ...bookingDetails, startDate: '', endDate: '', pickupLocation: '', returnLocation: '', destination: '', bankName: '', bankAccount: '', pickupFee: 0, returnFee: 0, totalDays: 0, extraHours: 0, extraHoursFee: 0, totalPrice: 0, appliedDailyRate: 0, discountTier: 'Normal', discountPercentage: 0, deposit: 0, grandTotal: 0, customerType: fleetPricingMode, paymentMethod: fleetPricingMode === 'local' ? 'fpx' : 'card' });
     setCurrentView('booking');
     window.scrollTo(0, 0);
   };
 
   const handleBookingSubmit = (e) => {
     e.preventDefault();
-    const days = calculateDays(bookingDetails.startDate, bookingDetails.endDate);
+    
+    const isTourist = bookingDetails.customerType === 'international';
+    const baseDailyPrice = isTourist ? selectedCar.priceTourist : selectedCar.priceLocal;
+    
+    const { days, extraHours, extraHoursFee, rentalTotal, totalHours, appliedDailyRate, discountTier, discountPercentage } = getRentalDurationAndCost(bookingDetails.startDate, bookingDetails.endDate, baseDailyPrice);
+    
     const now = new Date();
     const pickupDateTime = new Date(bookingDetails.startDate);
     const diffHours = (pickupDateTime - now) / (1000 * 60 * 60);
 
     if (diffHours < 24) {
-      showNotification('Tempahan urgent tidak dibenarkan. Sila tempah sekurang-kurangnya 24 jam awal.', 'error');
-      return;
-    }
-    if (days <= 0) {
-      showNotification('Sila pilih tarikh yang sah.', 'error');
-      return;
-    }
-    if (days < 2) {
-      showNotification('Minimum sewaan adalah 2 Hari. Kami tak terima sewaan 1 hari.', 'error');
+      showNotification('Urgent bookings are not allowed. Please book at least 24 hours in advance.', 'error');
       return;
     }
 
-    const isTourist = bookingDetails.customerType === 'international';
+    if (totalHours <= 0) {
+      showNotification('Please select valid dates.', 'error');
+      return;
+    }
+
+    if (totalHours < 48) {
+      showNotification('Minimum rental period is 48 Hours (2 Days). We do not accept 1-day rentals.', 'error');
+      return;
+    }
+
     const activeLocations = isTourist ? TOURIST_LOCATIONS : LOCATIONS;
 
     const pickupLoc = activeLocations.find(loc => loc.name === bookingDetails.pickupLocation);
     const returnLoc = activeLocations.find(loc => loc.name === bookingDetails.returnLocation);
     const pickupFee = pickupLoc ? pickupLoc.fee : 0;
     const returnFee = returnLoc ? returnLoc.fee : 0;
-    const dailyPrice = isTourist ? selectedCar.priceTourist : selectedCar.priceLocal;
+    
     const deposit = isTourist ? selectedCar.depositTourist : selectedCar.depositLocal;
-    const rentalTotal = days * dailyPrice;
     const grandTotal = rentalTotal + pickupFee + returnFee + deposit;
     
     setBookingDetails({ 
-      ...bookingDetails, pickupFee, returnFee, totalDays: days, totalPrice: rentalTotal, deposit: deposit, grandTotal: grandTotal 
+      ...bookingDetails, pickupFee, returnFee, totalDays: days, extraHours, extraHoursFee, totalPrice: rentalTotal, appliedDailyRate, discountTier, discountPercentage, deposit: deposit, grandTotal: grandTotal 
     });
     setCurrentView('payment');
     window.scrollTo(0, 0);
@@ -340,6 +455,17 @@ export default function App() {
       customer: { ...bookingDetails, phone: cleanPhone }, 
       date: new Date().toISOString(),
       status: 'Paid_Pending',
+      payment: {
+        status: 'pending',
+        gateway: isLocal ? 'toyyibpay' : 'stripe',
+        method: bookingDetails.paymentMethod,
+        amount: bookingDetails.grandTotal,
+        initiatedAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+        lastResult: 'initiated',
+        confirmedAt: null,
+        failureReason: null,
+      },
       supplier: { name: '-', cost: 0, type: 'pending' },
       profit: 0,
       documents: { ic: null, license: null, bill: null, status: 'pending' },
@@ -367,15 +493,22 @@ export default function App() {
           })
         });
 
-        const data = await response.json().catch(() => ({}));
+        const responseText = await response.text();
+        let data;
+        try {
+            data = JSON.parse(responseText);
+        } catch (e) {
+            console.error("Gateway Raw Error:", responseText);
+            throw new Error(`Server blocked request (Status: ${response.status}). Check Cloud Run Permissions.`);
+        }
+
         if (!response.ok) throw new Error(data.message || `HTTP Error: ${response.status}`);
 
         if (data.success && data.paymentUrl) {
            setPaymentUrl(data.paymentUrl);
-           setPaymentProcessing(false);
-           setSearchTrackId(customId);
            setCurrentView('request-success');
-           window.scrollTo(0,0);
+           setPaymentProcessing(false);
+           window.scrollTo(0, 0);
         } else {
            showNotification('Gateway Error: ' + (data.message || 'Please try again'), 'error');
            setPaymentProcessing(false);
@@ -416,7 +549,7 @@ export default function App() {
       });
       setManagingBooking(null);
       setSupplierDetails({ name: '', cost: '' });
-      showNotification('Kenderaan Berjaya Di-assign!');
+      showNotification('Vehicle assigned successfully!');
     } catch(err) { console.error(err); }
   };
 
@@ -426,7 +559,7 @@ export default function App() {
       const bookingRef = doc(db, 'artifacts', appId, 'public', 'data', 'bookings', bookingToReject.docId);
       await updateDoc(bookingRef, { status: 'Refunded' });
       setManagingBooking(null);
-      showNotification(`Tempahan ditolak. Refund telah direkodkan.`, 'error');
+      showNotification(`Booking rejected. Refund has been recorded.`, 'error');
     } catch (err) { console.error(err); }
   };
 
@@ -436,8 +569,8 @@ export default function App() {
       const bookingRef = doc(db, 'artifacts', appId, 'public', 'data', 'bookings', bookingToReturn.docId);
       await updateDoc(bookingRef, { status: 'Returned' });
       setViewingReturnVcr(null); 
-      showNotification('Pemeriksaan Lulus! Deposit dipulangkan.', 'success');
-    } catch (err) { console.error(err); showNotification('Ralat semasa update.', 'error'); }
+      showNotification('Inspection passed! Deposit refunded.', 'success');
+    } catch (err) { console.error(err); showNotification('Error during update.', 'error'); }
   };
 
   const handleVerifyKyc = async (bookingId, status) => {
@@ -446,7 +579,7 @@ export default function App() {
        const bookingRef = doc(db, 'artifacts', appId, 'public', 'data', 'bookings', booking.docId);
        await updateDoc(bookingRef, { 'documents.status': status });
        setVerifyingKyc(null);
-       showNotification(`Dokumen KYC ${status === 'verified' ? 'Disahkan' : 'Ditolak'}.`, status === 'verified' ? 'success' : 'error');
+       showNotification(`KYC Documents ${status === 'verified' ? 'Verified' : 'Rejected'}.`, status === 'verified' ? 'success' : 'error');
      } catch (err) { console.error(err); }
   };
 
@@ -457,9 +590,9 @@ export default function App() {
   };
 
   const handleCopyBroadcast = (booking) => {
-    const msg = `NEW BOOKING AFWAJA RENTAL\nID: ${booking.id}\nCar: ${booking.car.name}\nCustomer: ${booking.customer.name}\nPickup: ${booking.customer.startDate} @ ${booking.customer.pickupLocation}\nReturn: ${booking.customer.endDate} @ ${booking.customer.returnLocation}`;
+    const msg = `NEW BOOKING AFWAJA RENTAL\nID: ${booking.id}\nCar: ${booking.car.name}\nCustomer: ${booking.customer.name}\nPickup: ${formatDateTime(booking.customer.startDate)} @ ${booking.customer.pickupLocation}\nReturn: ${formatDateTime(booking.customer.endDate)} @ ${booking.customer.returnLocation}`;
     navigator.clipboard.writeText(msg);
-    showNotification('Mesej disalin ke clipboard!', 'info');
+    showNotification('Message copied to clipboard!', 'info');
   };
 
   const handleAdminLogin = async () => {
@@ -484,6 +617,73 @@ export default function App() {
     }
   };
 
+  const handleInjectDummyData = async () => {
+    if (!user) return;
+    const pendingId = `AFW-PENDING-${Math.floor(1000 + Math.random() * 9000)}`;
+    const refundedId = `AFW-REFUNDED-${Math.floor(1000 + Math.random() * 9000)}`;
+    const placeholderVcr = "https://via.placeholder.com/400x300.png?text=VCR+Photo";
+    const placeholderDoc = "https://via.placeholder.com/400x300.png?text=KYC+Document";
+
+    const baseCustomer = {
+      email: 'dummy@test.com',
+      phone: '0123456789',
+      startDate: new Date(Date.now() - 86400000 * 2).toISOString(), 
+      endDate: new Date(Date.now() - 3600000).toISOString(), 
+      pickupLocation: 'HQ (Cyberjaya)',
+      returnLocation: 'HQ (Cyberjaya)',
+      destination: 'Kuala Lumpur',
+      pickupFee: 0,
+      returnFee: 0,
+      totalDays: 2,
+      extraHours: 0,
+      extraHoursFee: 0,
+      totalPrice: 270,
+      appliedDailyRate: 135,
+      discountTier: 'Normal',
+      discountPercentage: 0,
+      deposit: 100,
+      grandTotal: 370,
+      customerType: 'local',
+      paymentMethod: 'fpx'
+    };
+
+    const dummyPending = {
+      id: pendingId,
+      car: INITIAL_CARS[0], 
+      customer: { ...baseCustomer, name: 'Ahmad (Test Return)' },
+      date: new Date(Date.now() - 86400000 * 3).toISOString(), 
+      status: 'Return_Pending', 
+      supplier: { name: 'Afwaja (Own Fleet)', cost: 0, type: 'self' },
+      profit: 270,
+      documents: { ic: placeholderDoc, license: placeholderDoc, bill: placeholderDoc, status: 'verified' },
+      vcr: { front: placeholderVcr, back: placeholderVcr, left: placeholderVcr, right: placeholderVcr, odometer: placeholderVcr, signature: placeholderVcr, status: 'completed' },
+      returnVcr: { front: placeholderVcr, back: placeholderVcr, left: placeholderVcr, right: placeholderVcr, odometer: placeholderVcr, status: 'submitted' }
+    };
+
+    const dummyRefunded = {
+      id: refundedId,
+      car: INITIAL_CARS[2], 
+      customer: { ...baseCustomer, name: 'Siti (Test Refunded)', deposit: 100, grandTotal: 420, totalPrice: 320, appliedDailyRate: 160 },
+      date: new Date(Date.now() - 86400000 * 4).toISOString(), 
+      status: 'Returned', 
+      supplier: { name: 'Afwaja (Own Fleet)', cost: 0, type: 'self' },
+      profit: 320,
+      documents: { ic: placeholderDoc, license: placeholderDoc, bill: placeholderDoc, status: 'verified' },
+      vcr: { front: placeholderVcr, back: placeholderVcr, left: placeholderVcr, right: placeholderVcr, odometer: placeholderVcr, signature: placeholderVcr, status: 'completed' },
+      returnVcr: { front: placeholderVcr, back: placeholderVcr, left: placeholderVcr, right: placeholderVcr, odometer: placeholderVcr, status: 'submitted' }
+    };
+
+    try {
+      const bookingsRef = collection(db, 'artifacts', appId, 'public', 'data', 'bookings');
+      await addDoc(bookingsRef, dummyPending);
+      await addDoc(bookingsRef, dummyRefunded);
+      showNotification('Dummy data injected successfully!', 'success');
+    } catch (err) {
+      console.error(err);
+      showNotification('Failed to inject dummy data', 'error');
+    }
+  };
+
   const handleKycFileChange = async (e, type) => {
     const file = e.target.files[0];
     if (!file) return;
@@ -500,25 +700,21 @@ export default function App() {
   const submitKycDocs = async () => {
     if (!trackedBooking) return;
     if (!uploadedDocs.ic || !uploadedDocs.license || !uploadedDocs.bill) {
-      return showNotification('Mohon unggah semua 3 dokumen wajib.', 'error');
+      return showNotification('Please upload all 3 mandatory documents.', 'error');
     }
     setKycUploading(true);
     try {
-      const icUrl = await uploadFileToStorage(uploadedDocs.ic, `kyc/${trackedBooking.id}/ic.jpg`);
-      const licenseUrl = await uploadFileToStorage(uploadedDocs.license, `kyc/${trackedBooking.id}/license.jpg`);
-      const billUrl = await uploadFileToStorage(uploadedDocs.bill, `kyc/${trackedBooking.id}/bill.jpg`);
-
       const bookingRef = doc(db, 'artifacts', appId, 'public', 'data', 'bookings', trackedBooking.docId);
       await updateDoc(bookingRef, {
-        'documents.ic': icUrl,
-        'documents.license': licenseUrl,
-        'documents.bill': billUrl,
+        'documents.ic': uploadedDocs.ic,
+        'documents.license': uploadedDocs.license,
+        'documents.bill': uploadedDocs.bill,
         'documents.status': 'submitted'
       });
-      showNotification('Dokumen dikirim untuk ditinjau oleh Admin.', 'success');
+      showNotification('Documents submitted for Admin review.', 'success');
     } catch (err) { 
-      console.error(err);
-      showNotification('Terjadi kesalahan unggah.', 'error'); 
+      console.error("KYC Upload Error:", err);
+      showNotification('An error occurred during upload.', 'error'); 
     }
     setKycUploading(false);
   };
@@ -526,12 +722,12 @@ export default function App() {
   const handleVcrFileChange = async (e, type) => {
     const file = e.target.files[0];
     if (!file) return;
-    showNotification(`Memproses tampilan ${type}...`, 'info');
+    showNotification(`Processing view for ${type}...`, 'info');
     const watermarkedBase64 = await processImageWithWatermark(file);
     if (watermarkedBase64) {
       setVcrDocs(prev => ({ ...prev, [type]: watermarkedBase64 }));
     } else {
-      showNotification('Gagal memproses file.', 'error');
+      showNotification('Failed to process file.', 'error');
     }
     e.target.value = null; 
   };
@@ -604,28 +800,24 @@ export default function App() {
 
   const submitReturnVcr = async () => {
     if (!trackedBooking) return;
-    if (!returnVcrDocs.front || !returnVcrDocs.back || !returnVcrDocs.left || !returnVcrDocs.right) {
-      return showNotification('Please upload all 4 vehicle corner views for return validation.', 'error');
+    if (!returnVcrDocs.front || !returnVcrDocs.back || !returnVcrDocs.left || !returnVcrDocs.right || !returnVcrDocs.odometer) {
+      return showNotification('Please upload all 5 required vehicle photos for return validation.', 'error');
     }
     setReturnVcrUploading(true);
     try {
-      const frontUrl = await uploadFileToStorage(returnVcrDocs.front, `returnVcr/${trackedBooking.id}/front.jpg`);
-      const backUrl = await uploadFileToStorage(returnVcrDocs.back, `returnVcr/${trackedBooking.id}/back.jpg`);
-      const leftUrl = await uploadFileToStorage(returnVcrDocs.left, `returnVcr/${trackedBooking.id}/left.jpg`);
-      const rightUrl = await uploadFileToStorage(returnVcrDocs.right, `returnVcr/${trackedBooking.id}/right.jpg`);
-
       const bookingRef = doc(db, 'artifacts', appId, 'public', 'data', 'bookings', trackedBooking.docId);
       await updateDoc(bookingRef, {
-        'returnVcr.front': frontUrl,
-        'returnVcr.back': backUrl,
-        'returnVcr.left': leftUrl,
-        'returnVcr.right': rightUrl,
+        'returnVcr.front': returnVcrDocs.front,
+        'returnVcr.back': returnVcrDocs.back,
+        'returnVcr.left': returnVcrDocs.left,
+        'returnVcr.right': returnVcrDocs.right,
+        'returnVcr.odometer': returnVcrDocs.odometer,
         'returnVcr.status': 'submitted',
         status: 'Return_Pending' 
       });
       showNotification('Return VCR Submitted Successfully!', 'success');
     } catch (err) {
-      console.error(err);
+      console.error("Return VCR Upload Error:", err);
       showNotification('Error saving return report.', 'error');
     }
     setReturnVcrUploading(false);
@@ -633,33 +825,28 @@ export default function App() {
 
   const submitVcr = async () => {
     if (!trackedBooking) return;
-    if (!vcrDocs.front || !vcrDocs.back || !vcrDocs.left || !vcrDocs.right) {
-      return showNotification('Please upload all 4 vehicle corner views.', 'error');
+    if (!vcrDocs.front || !vcrDocs.back || !vcrDocs.left || !vcrDocs.right || !vcrDocs.odometer) {
+      return showNotification('Please upload all 5 required vehicle photos.', 'error');
     }
     setVcrUploading(true);
     try {
-      const frontUrl = await uploadFileToStorage(vcrDocs.front, `vcr/${trackedBooking.id}/front.jpg`);
-      const backUrl = await uploadFileToStorage(vcrDocs.back, `vcr/${trackedBooking.id}/back.jpg`);
-      const leftUrl = await uploadFileToStorage(vcrDocs.left, `vcr/${trackedBooking.id}/left.jpg`);
-      const rightUrl = await uploadFileToStorage(vcrDocs.right, `vcr/${trackedBooking.id}/right.jpg`);
-      
       const canvas = sigCanvas.current;
       const signatureBase64 = canvas ? canvas.toDataURL('image/png') : null;
-      const sigUrl = await uploadFileToStorage(signatureBase64, `vcr/${trackedBooking.id}/signature.png`);
 
       const bookingRef = doc(db, 'artifacts', appId, 'public', 'data', 'bookings', trackedBooking.docId);
       await updateDoc(bookingRef, {
-        'vcr.front': frontUrl,
-        'vcr.back': backUrl,
-        'vcr.left': leftUrl,
-        'vcr.right': rightUrl,
-        'vcr.signature': sigUrl,
+        'vcr.front': vcrDocs.front,
+        'vcr.back': vcrDocs.back,
+        'vcr.left': vcrDocs.left,
+        'vcr.right': vcrDocs.right,
+        'vcr.odometer': vcrDocs.odometer,
+        'vcr.signature': signatureBase64,
         'vcr.status': 'completed',
         status: 'Active' 
       });
       showNotification('VCR and Agreement successfully recorded.', 'success');
     } catch (err) {
-      console.error(err);
+      console.error("VCR Upload Error:", err);
       showNotification('Error saving VCR.', 'error');
     }
     setVcrUploading(false);
@@ -673,7 +860,7 @@ export default function App() {
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex items-center justify-between h-16 sm:h-20">
           <div className="flex items-center cursor-pointer" onClick={() => { setCurrentView('home'); setIsMobileMenuOpen(false); }}>
-            <img src="logo afwaja 4.png" alt="Afwaja Logo" className="h-10 sm:h-12 w-auto object-contain" onError={(e) => { e.target.style.display = 'none'; e.target.nextSibling.style.display = 'flex'; }}/>
+            <img src="https://platform-bcl.bsb-cdn.com/media/2026/04/01KP2KFY3QZ342VQBTS02D1K8E.png" alt="Afwaja Logo" className="h-14 sm:h-16 w-auto object-contain transform scale-125 origin-left ml-2" onError={(e) => { e.target.style.display = 'none'; e.target.nextSibling.style.display = 'flex'; }}/>
             <div style={{display: 'none'}} className="items-center gap-2">
               <div className="w-10 h-10 sm:w-12 sm:h-12 bg-gradient-to-br from-cyan-400 to-teal-500 rounded-xl flex items-center justify-center pulse-glow">
                 <Globe className="w-5 h-5 sm:w-6 sm:h-6 text-white" />
@@ -767,7 +954,7 @@ export default function App() {
               <div className="relative w-full aspect-square max-w-lg mx-auto">
                 <div className="absolute inset-0 bg-gradient-to-br from-cyan-400/20 to-teal-400/20 rounded-3xl transform rotate-6"></div>
                 <div className="absolute inset-0 glass-card rounded-3xl flex flex-col items-center justify-center border border-white/50">
-                  <img src="logo afwaja 4.png" alt="Afwaja Logo" className="w-56 h-auto mb-4 drop-shadow-xl" onError={(e) => { e.target.style.display='none'; e.target.nextSibling.style.display='block'; }}/>
+                  <img src="https://platform-bcl.bsb-cdn.com/media/2026/03/01KKK1QDM602YYPNC4MPN4YSB1.png" alt="Afwaja Logo" className="w-56 h-auto mb-4 drop-shadow-xl" onError={(e) => { e.target.style.display='none'; e.target.nextSibling.style.display='block'; }}/>
                   <div className="text-center font-bold text-2xl brand text-slate-800 mt-4">Afwaja Fleet</div>
                   <div className="text-teal-600 font-medium">300+ Vehicles Available</div>
                 </div>
@@ -780,25 +967,38 @@ export default function App() {
           <div className="max-w-7xl mx-auto">
             <div className="grid lg:grid-cols-2 gap-12 items-center">
               <div>
-                <img src="https://images.unsplash.com/photo-1541899481282-d53bffe3c35d?auto=format&fit=crop&q=80&w=1000" alt="About Us" className="rounded-3xl shadow-2xl object-cover h-96 w-full" />
+                <img src="https://platform-bcl.bsb-cdn.com/media/2026/04/01KNYN7W4E9NRN01Q1T27DJDFZ.png" alt="Proton S70 - About Us" className="rounded-3xl shadow-2xl object-cover h-96 w-full" />
               </div>
               <div>
                 <div className="inline-flex items-center gap-2 bg-teal-500/10 border border-teal-500/30 rounded-full px-4 py-2 mb-6">
                   <Shield className="w-4 h-4 text-teal-600" />
                   <span className="text-teal-700 text-sm font-bold tracking-wide">About Afwaja Rental</span>
                 </div>
-                <h2 className="brand text-3xl sm:text-4xl font-bold mb-6 text-slate-900">Your Trusted Travel Partner in Malaysia</h2>
-                <p className="text-slate-600 text-lg mb-6 leading-relaxed">
-                  We started with a simple vision: to provide a transparent, fast, and reliable car rental service for international and domestic travelers. With a combined inventory of our own fleet and strategic partners, we ensure you get a comfortable car, delivered right on time.
-                </p>
+                <h2 className="brand text-3xl sm:text-4xl font-bold mb-6 text-slate-900">Redefining Mobility: Your Premier Car Rental Partner</h2>
+                <div className="text-slate-600 text-lg mb-8 space-y-4 leading-relaxed">
+                  <p>
+                    Afwaja Car Rental was established with a singular commitment: to deliver a seamless, transparent, and premium transportation experience for both corporate clients and leisure travelers. We bridge the gap between affordability and reliability, ensuring every journey begins with absolute peace of mind.
+                  </p>
+                  <p>
+                    Operating from our strategic hub in Cyberjaya, we leverage a dynamic fleet management system—combining our proprietary vehicles with an extensive network of verified strategic partners. This unique hybrid model guarantees unparalleled vehicle availability, flexible delivery options, and highly competitive pricing without any hidden fees.
+                  </p>
+                </div>
                 <div className="grid sm:grid-cols-2 gap-6 mt-8">
                   <div className="flex gap-4">
-                    <div className="w-12 h-12 rounded-xl bg-cyan-100 flex items-center justify-center flex-shrink-0"><Award className="text-cyan-600"/></div>
-                    <div><h4 className="font-bold text-slate-900">Guaranteed Quality</h4><p className="text-sm text-slate-500">Regularly serviced & sanitized.</p></div>
+                    <div className="w-12 h-12 rounded-xl bg-cyan-100 flex items-center justify-center flex-shrink-0"><ShieldCheck className="text-cyan-600"/></div>
+                    <div><h4 className="font-bold text-slate-900">Impeccable Quality</h4><p className="text-sm text-slate-500">Meticulously maintained and sanitized fleet.</p></div>
+                  </div>
+                  <div className="flex gap-4">
+                    <div className="w-12 h-12 rounded-xl bg-cyan-100 flex items-center justify-center flex-shrink-0"><CreditCard className="text-cyan-600"/></div>
+                    <div><h4 className="font-bold text-slate-900">Transparent Pricing</h4><p className="text-sm text-slate-500">Zero hidden fees with automated deposit refunds.</p></div>
+                  </div>
+                  <div className="flex gap-4">
+                    <div className="w-12 h-12 rounded-xl bg-cyan-100 flex items-center justify-center flex-shrink-0"><Sparkles className="text-cyan-600"/></div>
+                    <div><h4 className="font-bold text-slate-900">Digital-First Approach</h4><p className="text-sm text-slate-500">Seamless online booking & automated e-KYC.</p></div>
                   </div>
                   <div className="flex gap-4">
                     <div className="w-12 h-12 rounded-xl bg-cyan-100 flex items-center justify-center flex-shrink-0"><Clock className="text-cyan-600"/></div>
-                    <div><h4 className="font-bold text-slate-900">24/7 Support</h4><p className="text-sm text-slate-500">We're here whenever you need us.</p></div>
+                    <div><h4 className="font-bold text-slate-900">24/7 Dedicated Support</h4><p className="text-sm text-slate-500">Round-the-clock roadside assistance.</p></div>
                   </div>
                 </div>
               </div>
@@ -871,14 +1071,27 @@ export default function App() {
             </div>
 
             <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-8">
-              {filteredCars.map(car => (
+              {filteredCars.map(car => {
+                // LOGIK ZOOM KHAS: Kereta yang ada banyak padding lutsinar kita zoom lebih sikit
+                const isSmallImage = [2, 20, 23].includes(car.id); // 2: Axia Old, 20: Vellfire 3rd Gen, 23: Starex
+                const scaleClasses = isSmallImage ? "scale-125 group-hover:scale-[1.4]" : "scale-110 group-hover:scale-125";
+
+                return (
                 <div key={car.id} className="car-card group glass-card rounded-3xl overflow-hidden transition-all duration-500 border border-slate-200/60 shadow-lg hover:shadow-cyan-500/20 flex flex-col bg-white/90">
-                  <div className={`h-52 w-full bg-gradient-to-br ${car.color} flex items-center justify-center relative overflow-hidden p-6`}>
+                  <div className={`h-52 w-full bg-gradient-to-br ${car.color} flex items-center justify-center relative overflow-hidden p-2`}>
                     <div className="absolute inset-0 bg-black/10 group-hover:bg-transparent transition-colors duration-500"></div>
+                    
+                    {/* LOGO AFWAJA (WATERMARK UNTUK SEMUA KERETA) */}
+                    <img 
+                      src="https://platform-bcl.bsb-cdn.com/media/2026/04/01KP2KFY3QZ342VQBTS02D1K8E.png" 
+                      alt="Afwaja Logo" 
+                      className="absolute top-4 left-4 h-6 sm:h-8 w-auto z-20 opacity-90 drop-shadow-md group-hover:scale-110 transition-transform origin-top-left" 
+                    />
+
                     {car.image ? (
-                      <img src={car.image} alt={car.name} className="w-full h-full object-contain drop-shadow-2xl opacity-95 transform group-hover:scale-110 group-hover:-translate-y-2 transition-all duration-500 relative z-10" />
+                      <img src={car.image} alt={car.name} className={`w-full h-full object-contain drop-shadow-2xl opacity-95 transform ${scaleClasses} group-hover:-translate-y-2 transition-all duration-500 relative z-10`} />
                     ) : (
-                      <Car size={100} className="text-white drop-shadow-2xl opacity-90 transform group-hover:scale-110 group-hover:-translate-y-2 transition-all duration-500 relative z-10" strokeWidth={1} />
+                      <Car size={100} className={`text-white drop-shadow-2xl opacity-90 transform ${scaleClasses} group-hover:-translate-y-2 transition-all duration-500 relative z-10`} strokeWidth={1} />
                     )}
                   </div>
                   <div className="p-6 flex-1 flex flex-col relative">
@@ -904,7 +1117,8 @@ export default function App() {
                     </div>
                   </div>
                 </div>
-              ))}
+                );
+              })}
             </div>
           </div>
         </section>
@@ -918,8 +1132,11 @@ export default function App() {
             <div className="grid md:grid-cols-3 gap-8">
               {[
                 { name: "John Davidson", role: "Tourist from UK", text: "The booking process was incredibly smooth. They delivered the car right to KLIA terminal as soon as I landed. Highly recommended for tourists!", stars: 5 },
+                { name: "Ahmad Faizal", role: "Pelanggan Tempatan", text: "Sewa Alza untuk balik kampung. Kereta memang tip-top, bersih dan wangi. Sistem booking pun senang gila tak payah wasap panjang-panjang. Terbaik Afwaja!", stars: 5 },
                 { name: "Sarah Lee", role: "Corporate Executive", text: "Very fast deposit refund system. I returned the car without any scratches, and received my deposit back within 24 hours. Trusted service!", stars: 5 },
-                { name: "Ramesh Raj", role: "Frequent Traveler", text: "Great variety of cars. Needed an MPV for a family trip and they provided a clean, well-maintained vehicle. Very reasonable pricing.", stars: 5 }
+                { name: "Nurul Huda", role: "Pelanggan Tempatan", text: "First time jumpa sistem sewa kereta yang telus macam ni. Harga dah tunjuk awal-awal siap ada diskaun. Ambil kereta kat HQ diorang kat Cyberjaya memang smooth.", stars: 5 },
+                { name: "Ramesh Raj", role: "Family Trip", text: "Great variety of cars. Needed an MPV for a family trip to Penang and they provided a well-maintained vehicle. Very reasonable pricing for the weekend.", stars: 5 },
+                { name: "Michael Chen", role: "Expat in Malaysia", text: "Rented a vehicle for a whole month. The 45% long-term discount is a massive saver. Love the digital VCR and E-agreement process. Highly secure.", stars: 5 }
               ].map((testi, i) => (
                 <div key={i} className="glass-card bg-white/80 p-8 rounded-3xl shadow-sm border border-slate-200 relative">
                   <Quote className="absolute top-6 right-6 text-slate-200 w-12 h-12" />
@@ -946,16 +1163,15 @@ export default function App() {
           <div className="max-w-7xl mx-auto grid md:grid-cols-4 gap-8">
             <div className="md:col-span-2">
               <div className="flex items-center gap-2 mb-4">
-                <Car className="text-cyan-500 w-8 h-8" />
-                <span className="brand text-2xl font-bold text-white">Afwaja Rental</span>
+                <span className="brand text-2xl font-bold text-white">Afwaja Car Rental</span>
               </div>
               <p className="text-slate-400 mb-6 max-w-sm leading-relaxed">
                 Malaysia's leading smart car rental provider. Connecting you to your destinations safely and comfortably.
               </p>
               <div className="flex gap-4">
-                <a href="#" className="w-10 h-10 rounded-full bg-slate-800 flex items-center justify-center hover:bg-cyan-600 transition-colors"><MessageCircle size={18}/></a>
-                <a href="#" className="w-10 h-10 rounded-full bg-slate-800 flex items-center justify-center hover:bg-cyan-600 transition-colors"><Globe size={18}/></a>
-                <a href="#" className="w-10 h-10 rounded-full bg-slate-800 flex items-center justify-center hover:bg-cyan-600 transition-colors"><Mail size={18}/></a>
+                <button onClick={() => { setCurrentView('contact'); window.scrollTo(0,0); }} className="w-10 h-10 rounded-full bg-slate-800 flex items-center justify-center text-slate-300 hover:text-white hover:bg-cyan-600 transition-colors" title="Contact Us"><MessageCircle size={18}/></button>
+                <a href="tel:0338530080" className="w-10 h-10 rounded-full bg-slate-800 flex items-center justify-center text-slate-300 hover:text-white hover:bg-cyan-600 transition-colors" title="Call Us"><Phone size={18}/></a>
+                <a href="mailto:afwajatrading@gmail.com" className="w-10 h-10 rounded-full bg-slate-800 flex items-center justify-center text-slate-300 hover:text-white hover:bg-cyan-600 transition-colors" title="Email Us"><Mail size={18}/></a>
               </div>
             </div>
             <div>
@@ -970,10 +1186,18 @@ export default function App() {
             <div>
               <h4 className="text-white font-bold mb-4 uppercase tracking-wider text-sm">Support</h4>
               <ul className="space-y-3 text-sm">
-                <li><button onClick={() => { setCurrentView('terms'); window.scrollTo(0,0); }} className="hover:text-cyan-400 transition-colors">Terms & Conditions</button></li>
-                <li><a href="#" className="hover:text-cyan-400 transition-colors">Privacy Policy</a></li>
-                <li><a href="#" className="hover:text-cyan-400 transition-colors">FAQ</a></li>
-                <li><a href="#" className="hover:text-cyan-400 transition-colors">Contact Us</a></li>
+                <li><button onClick={() => { setReadingDoc('terms'); window.scrollTo(0,0); }} className="hover:text-cyan-400 transition-colors">Terms & Conditions</button></li>
+                <li><button onClick={() => { setReadingDoc('privacy'); window.scrollTo(0,0); }} className="hover:text-cyan-400 transition-colors">Privacy Policy</button></li>
+                <li><button onClick={() => { setCurrentView('faq'); window.scrollTo(0,0); }} className="hover:text-cyan-400 transition-colors">FAQ</button></li>
+                <li><button onClick={() => { setCurrentView('contact'); window.scrollTo(0,0); }} className="hover:text-cyan-400 transition-colors">Contact Us</button></li>
+              </ul>
+            </div>
+            <div>
+              <h4 className="text-white font-bold mb-4 uppercase tracking-wider text-sm">Follow Us</h4>
+              <ul className="space-y-3 text-sm">
+                <li><a href="https://instagram.com/carrentalcyber" target="_blank" rel="noopener noreferrer" className="hover:text-cyan-400 transition-colors flex items-center gap-1">Instagram ↗</a></li>
+                <li><a href="https://tiktok.com/@afwajacarrental" target="_blank" rel="noopener noreferrer" className="hover:text-cyan-400 transition-colors flex items-center gap-1">TikTok ↗</a></li>
+                <li><a href="https://facebook.com/afwajatrading" target="_blank" rel="noopener noreferrer" className="hover:text-cyan-400 transition-colors flex items-center gap-1">Facebook ↗</a></li>
               </ul>
             </div>
           </div>
@@ -994,8 +1218,11 @@ export default function App() {
     const currentPickupFee = activeLocations.find(l => l.name === bookingDetails.pickupLocation)?.fee || 0;
     const currentReturnFee = activeLocations.find(l => l.name === bookingDetails.returnLocation)?.fee || 0;
 
+    const liveRental = getRentalDurationAndCost(bookingDetails.startDate, bookingDetails.endDate, currentDailyPrice);
+
     return (
-      <div className="max-w-5xl mx-auto px-4 py-24 animate-fadeIn font-dm">
+      <>
+      <div className={`max-w-5xl mx-auto px-4 py-24 animate-fadeIn font-dm ${readingDoc ? 'hidden' : 'block'}`}>
         <button onClick={() => setCurrentView('home')} className="text-cyan-600 font-bold mb-8 flex items-center hover:underline bg-white/50 px-4 py-2 rounded-lg inline-flex">
           &larr; Back to Home
         </button>
@@ -1013,8 +1240,20 @@ export default function App() {
             </div>
             
             <div className="relative z-10 text-center sm:text-right border-t sm:border-t-0 sm:border-l border-white/20 pt-6 sm:pt-0 sm:pl-10 w-full sm:w-auto">
-              <p className="text-sm font-medium text-white/80 mb-1 uppercase tracking-widest">Estimated Daily Rate</p>
-              <p className="brand text-5xl sm:text-6xl font-bold">MYR {currentDailyPrice} <span className="text-lg font-normal font-dm">/day</span></p>
+              <p className="text-sm font-medium text-white/80 mb-1 uppercase tracking-widest">
+                {liveRental?.discountPercentage > 0 ? 'Discounted Daily Rate' : 'Estimated Daily Rate'}
+              </p>
+              <div className="flex flex-col sm:items-end items-center">
+                {liveRental?.discountPercentage > 0 && (
+                  <p className="text-white/60 line-through text-lg font-bold mb-[-5px]">MYR {currentDailyPrice}</p>
+                )}
+                <p className="brand text-5xl sm:text-6xl font-bold text-white">MYR {liveRental?.totalHours > 0 ? liveRental.appliedDailyRate : currentDailyPrice} <span className="text-lg font-normal font-dm">/day</span></p>
+                {liveRental?.discountPercentage > 0 && (
+                  <div className="inline-flex mt-2 items-center bg-emerald-500 text-white px-3 py-1 rounded-lg text-xs font-bold shadow-lg">
+                    <Sparkles size={12} className="mr-1"/> {liveRental.discountPercentage}% OFF ({liveRental.discountTier})
+                  </div>
+                )}
+              </div>
             </div>
           </div>
 
@@ -1056,7 +1295,10 @@ export default function App() {
 
               <div className="bg-slate-50 p-6 sm:p-8 rounded-2xl border border-slate-200 mb-8 shadow-sm">
                 <div className="mb-5 border-b border-slate-200 pb-3">
-                  <h3 className="font-bold text-slate-800 text-lg flex items-center gap-2"><Calendar size={20} className="text-cyan-600"/> Date/Time & Destination</h3>
+                  <div className="flex justify-between items-center">
+                    <h3 className="font-bold text-slate-800 text-lg flex items-center gap-2"><Calendar size={20} className="text-cyan-600"/> Date/Time & Destination</h3>
+                    <span className="bg-cyan-100 text-cyan-800 text-[10px] uppercase font-bold px-2 py-1 rounded-md hidden sm:block">Longer Rentals = Cheaper Rates</span>
+                  </div>
                   <p className="text-xs text-orange-600 font-bold mt-1.5 flex flex-col sm:flex-row sm:items-center gap-1">
                     <span className="flex items-center"><Clock size={14} className="mr-1"/> Note: Minimum 24-hours advance booking required.</span>
                     <span className="hidden sm:inline">|</span>
@@ -1109,52 +1351,83 @@ export default function App() {
                 </div>
               </div>
 
-              {bookingDetails.startDate && bookingDetails.endDate && calculateDays(bookingDetails.startDate, bookingDetails.endDate) > 0 && (
-                <div className="bg-cyan-50 p-6 sm:p-8 rounded-2xl mt-8 border border-cyan-200 shadow-inner animate-fadeIn">
-                  <p className="text-base font-bold text-cyan-900 mb-4 border-b border-cyan-200 pb-3 flex items-center gap-2">
-                    <FileText size={20}/> Booking Summary ({calculateDays(bookingDetails.startDate, bookingDetails.endDate)} Days)
-                  </p>
-                  <div className="flex justify-between items-center mb-2 text-sm font-bold text-slate-700">
-                    <span>Rental Rate:</span>
-                    <span>MYR {calculateDays(bookingDetails.startDate, bookingDetails.endDate) * currentDailyPrice}</span>
-                  </div>
-                  {bookingDetails.pickupLocation && (
-                    <div className="flex justify-between items-center mb-2 text-sm font-bold text-slate-700">
-                      <span>{isTourist ? 'Pickup Fee' : 'Delivery Fee'}:</span>
-                      <span>MYR {currentPickupFee}</span>
+              {(() => {
+                if (bookingDetails.startDate && bookingDetails.endDate && liveRental.totalHours > 0) {
+                  return (
+                    <div className="bg-cyan-50 p-6 sm:p-8 rounded-2xl mt-8 border border-cyan-200 shadow-inner animate-fadeIn">
+                      <p className="text-base font-bold text-cyan-900 mb-4 border-b border-cyan-200 pb-3 flex items-center gap-2">
+                        <FileText size={20}/> Booking Summary ({liveRental.days} Days {liveRental.extraHours > 0 ? `+ ${liveRental.extraHours} Hours` : ''})
+                      </p>
+                      <div className="flex justify-between items-center mb-2 text-sm font-bold text-slate-700">
+                        <span>Rental Rate ({liveRental.days} Days @ MYR {liveRental.appliedDailyRate}/day):</span>
+                        <span>MYR {liveRental.days * liveRental.appliedDailyRate}</span>
+                      </div>
+                      {liveRental.extraHours > 0 && (
+                        <div className="flex justify-between items-center mb-2 text-sm font-bold text-slate-700">
+                          <span>Extra Hours Fee ({liveRental.extraHours} Hours):</span>
+                          <span>MYR {liveRental.extraHoursFee}</span>
+                        </div>
+                      )}
+                      {bookingDetails.pickupLocation && (
+                        <div className="flex justify-between items-center mb-2 text-sm font-bold text-slate-700">
+                          <span>{isTourist ? 'Pickup Fee' : 'Delivery Fee'}:</span>
+                          <span>MYR {currentPickupFee}</span>
+                        </div>
+                      )}
+                      {bookingDetails.returnLocation && (
+                        <div className="flex justify-between items-center mb-2 text-sm font-bold text-slate-700">
+                          <span>Return Fee:</span>
+                          <span>MYR {currentReturnFee}</span>
+                        </div>
+                      )}
+                      <div className="flex justify-between items-center mb-4 text-sm font-bold text-slate-700">
+                        <span>Security Deposit (Fully Refundable):</span>
+                        <span>MYR {currentDeposit}</span>
+                      </div>
+                      <div className="flex justify-between items-center border-t-2 border-cyan-200 border-dashed pt-4 mt-2">
+                        <span className="font-bold text-cyan-900 text-lg">Grand Total:</span>
+                        <span className="brand text-3xl font-bold text-teal-700">
+                          MYR {liveRental.rentalTotal + currentPickupFee + currentReturnFee + currentDeposit}
+                        </span>
+                      </div>
                     </div>
-                  )}
-                  {bookingDetails.returnLocation && (
-                    <div className="flex justify-between items-center mb-2 text-sm font-bold text-slate-700">
-                      <span>Return Fee:</span>
-                      <span>MYR {currentReturnFee}</span>
-                    </div>
-                  )}
-                  <div className="flex justify-between items-center mb-4 text-sm font-bold text-slate-700">
-                    <span>Security Deposit (Fully Refundable):</span>
-                    <span>MYR {currentDeposit}</span>
-                  </div>
-                  <div className="flex justify-between items-center border-t-2 border-cyan-200 border-dashed pt-4 mt-2">
-                    <span className="font-bold text-cyan-900 text-lg">Grand Total:</span>
-                    <span className="brand text-3xl font-bold text-teal-700">
-                      MYR {
-                        (calculateDays(bookingDetails.startDate, bookingDetails.endDate) * currentDailyPrice) + 
-                        currentPickupFee +
-                        currentReturnFee +
-                        currentDeposit
-                      }
-                    </span>
-                  </div>
-                </div>
-              )}
+                  );
+                }
+                return null;
+              })()}
 
-              <button type="submit" className="w-full btn-primary text-white font-bold text-xl py-5 rounded-2xl mt-10 flex justify-center items-center gap-3 shadow-lg shadow-cyan-500/40 hover:scale-[1.01] transition-transform">
+              <div className="mt-10 bg-slate-50 p-5 rounded-2xl border border-slate-200 flex items-start gap-4 hover:border-cyan-300 transition-colors shadow-sm">
+                <input 
+                  type="checkbox" 
+                  id="agreeTerms" 
+                  required 
+                  className="mt-1 w-5 h-5 rounded border-slate-300 text-cyan-600 focus:ring-cyan-500 cursor-pointer flex-shrink-0"
+                />
+                <label htmlFor="agreeTerms" className="text-sm text-slate-600 font-medium cursor-pointer leading-relaxed">
+                  I have read, understood, and agree to the <button type="button" onClick={() => { setReadingDoc('terms'); window.scrollTo(0,0); }} className="text-cyan-600 font-bold hover:underline">Terms & Conditions</button> and <button type="button" onClick={() => { setReadingDoc('privacy'); window.scrollTo(0,0); }} className="text-cyan-600 font-bold hover:underline">Privacy Policy</button>, including the security deposit, cancellation policy, and accident excess clauses.
+                </label>
+              </div>
+
+              <button type="submit" className="w-full btn-primary text-white font-bold text-xl py-5 rounded-2xl mt-6 flex justify-center items-center gap-3 shadow-lg shadow-cyan-500/40 hover:scale-[1.01] transition-transform">
                 Proceed to Payment <CreditCard size={24} />
               </button>
             </form>
           </div>
         </div>
       </div>
+
+      {/* OVERLAY DOKUMEN (FULL SCREEN MODAL) */}
+      {readingDoc === 'terms' && (
+        <div className="fixed inset-0 z-[100] bg-white overflow-y-auto animate-fadeIn">
+          {TermsView({ onBack: () => setReadingDoc(null) })}
+        </div>
+      )}
+      {readingDoc === 'privacy' && (
+        <div className="fixed inset-0 z-[100] bg-white overflow-y-auto animate-fadeIn">
+          {PrivacyPolicyView({ onBack: () => setReadingDoc(null) })}
+        </div>
+      )}
+      </>
     );
   };
 
@@ -1178,7 +1451,7 @@ export default function App() {
             </div>
             <div className="text-right bg-slate-50 p-3 rounded-lg border border-slate-100">
               <p className="font-bold text-slate-900">{selectedCar.name}</p>
-              <p className="text-sm font-medium text-blue-600">{bookingDetails.totalDays} Days</p>
+              <p className="text-sm font-medium text-blue-600">{bookingDetails.totalDays} Days {bookingDetails.extraHours > 0 ? `+ ${bookingDetails.extraHours} Hours` : ''}</p>
             </div>
           </div>
           
@@ -1186,9 +1459,16 @@ export default function App() {
             <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-3 border-b border-slate-200 pb-2">Payment Breakdown</p>
             
             <div className="flex justify-between mb-2">
-              <span>Vehicle Rental ({bookingDetails.totalDays} Days)</span>
-              <span className="font-bold text-slate-800">MYR {bookingDetails.totalPrice}</span>
+              <span>Vehicle Rental ({bookingDetails.totalDays} Days @ MYR {bookingDetails.appliedDailyRate})</span>
+              <span className="font-bold text-slate-800">MYR {bookingDetails.totalPrice - (bookingDetails.extraHoursFee || 0)}</span>
             </div>
+
+            {bookingDetails.extraHours > 0 && (
+              <div className="flex justify-between mb-2">
+                <span>Extra Hours ({bookingDetails.extraHours} Hours)</span>
+                <span className="font-bold text-slate-800">MYR {bookingDetails.extraHoursFee}</span>
+              </div>
+            )}
             
             {bookingDetails.pickupFee > 0 && (
               <div className="flex justify-between mb-2">
@@ -1228,7 +1508,7 @@ export default function App() {
                  </div>
                </div>
             )}
-            
+
             <button type="submit" disabled={paymentProcessing} className="w-full bg-slate-900 text-white font-bold text-lg py-4 rounded-xl hover:bg-slate-800 transition-all flex justify-center items-center shadow-lg disabled:bg-slate-700 disabled:cursor-not-allowed">
               {paymentProcessing ? <RefreshCw className="animate-spin mr-2" size={20}/> : <ShieldCheck size={20} className="mr-2"/>}
               {paymentProcessing ? `Connecting to ${activeGateway}...` : `Pay MYR ${bookingDetails.grandTotal} Now`}
@@ -1272,8 +1552,59 @@ export default function App() {
 
       <div className="flex justify-center gap-4 mt-8 pt-8 border-t border-slate-200">
         <button onClick={() => { setSearchTrackId(currentBookingId); setCurrentView('track'); }} className="bg-slate-900 text-white px-8 py-3 rounded-xl font-bold shadow-md hover:bg-slate-800 transition-colors">
-          Complete Identity Verification (KYC)
+          Track Booking Status
         </button>
+      </div>
+    </div>
+  );
+
+  const ThankYouView = () => (
+    <div className="max-w-3xl mx-auto px-4 py-24 animate-fadeIn font-dm">
+      <div className="bg-white rounded-3xl shadow-xl overflow-hidden border border-slate-200">
+        <div className="bg-emerald-500 p-8 sm:p-12 text-center text-white relative overflow-hidden">
+           <div className="absolute top-0 right-0 -mt-10 -mr-10 w-40 h-40 bg-white opacity-10 rounded-full blur-2xl"></div>
+           <div className="absolute bottom-0 left-0 -mb-10 -ml-10 w-40 h-40 bg-white opacity-10 rounded-full blur-2xl"></div>
+           
+           <div className="relative z-10 w-20 h-20 bg-white rounded-full flex items-center justify-center mx-auto mb-6 shadow-lg">
+              <CheckCircle className="w-10 h-10 text-emerald-500" />
+           </div>
+           <h2 className="brand text-4xl sm:text-5xl font-bold mb-4 relative z-10">Thank You!</h2>
+           <p className="text-emerald-50 text-lg relative z-10">Your booking payment has been successfully received.</p>
+           <div className="mt-6 inline-block bg-emerald-600 border border-emerald-400 px-6 py-3 rounded-xl shadow-inner">
+             <span className="text-emerald-100 text-xs uppercase tracking-widest font-bold block mb-1">Your Booking ID</span>
+             <span className="font-mono text-2xl font-bold">{currentBookingId || 'AFW-XXXX'}</span>
+           </div>
+        </div>
+        
+        <div className="p-8 sm:p-12 bg-slate-50">
+          <h3 className="text-xl font-bold text-slate-900 mb-8 flex items-center gap-2">
+            <CheckCircle className="text-cyan-600"/> What You Need to Do Next
+          </h3>
+          
+          <div className="space-y-6">
+            <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm flex gap-4 relative overflow-hidden border-l-4 border-l-cyan-500">
+               <div className="w-10 h-10 bg-cyan-100 text-cyan-600 rounded-full flex items-center justify-center flex-shrink-0 font-bold text-lg mt-1">1</div>
+               <div>
+                 <h4 className="font-bold text-slate-900 text-lg mb-1">Check Your Email Inbox</h4>
+                 <p className="text-slate-600 text-sm leading-relaxed">Your Official Receipt and booking details will be sent to your email (Please check your Spam/Junk folder if it is not in your Inbox).</p>
+               </div>
+            </div>
+            
+            <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm flex gap-4">
+               <div className="w-10 h-10 bg-slate-100 text-slate-500 rounded-full flex items-center justify-center flex-shrink-0 font-bold text-lg mt-1">2</div>
+               <div>
+                 <h4 className="font-bold text-slate-900 text-lg mb-1">Track Your Booking Status</h4>
+                 <p className="text-slate-600 text-sm leading-relaxed">Our team will review your payment and assign a vehicle shortly. Use your Booking ID to track the status in real-time.</p>
+               </div>
+            </div>
+          </div>
+          
+          <div className="mt-10 pt-8 border-t border-slate-200 text-center">
+            <button onClick={() => { setSearchTrackId(currentBookingId || ''); setCurrentView('track'); window.scrollTo(0,0); }} className="btn-primary w-full sm:w-auto px-10 py-4 rounded-xl text-white font-bold text-lg flex items-center justify-center gap-3 shadow-lg hover:scale-105 transition-transform mx-auto">
+              Track Booking Status <ChevronRight size={20}/>
+            </button>
+          </div>
+        </div>
       </div>
     </div>
   );
@@ -1352,7 +1683,7 @@ export default function App() {
               <div className="flex flex-col md:flex-row justify-between mb-8 gap-6">
                 <div>
                   <p className="font-bold text-slate-900 text-xl">{trackedBooking.car.name}</p>
-                  <p className="text-slate-600">{trackedBooking.customer.startDate} → {trackedBooking.customer.endDate} ({trackedBooking.customer.totalDays} Days)</p>
+                  <p className="text-slate-600">{formatDateTime(trackedBooking.customer.startDate)} → {formatDateTime(trackedBooking.customer.endDate)} ({trackedBooking.customer.totalDays} Days {trackedBooking.customer.extraHours > 0 ? `+ ${trackedBooking.customer.extraHours} Hours` : ''})</p>
                   <p className="text-slate-600 mt-2 text-sm"><MapPin size={14} className="inline mr-1"/> Pickup: {trackedBooking.customer.pickupLocation}</p>
                   <p className="text-slate-600 mt-1 text-sm"><MapPin size={14} className="inline mr-1"/> Drop-off: {trackedBooking.customer.returnLocation}</p>
                 </div>
@@ -1366,7 +1697,7 @@ export default function App() {
                 </div>
               </div>
 
-              {(trackedBooking.status === 'Completed' || trackedBooking.status === 'Active' || trackedBooking.status === 'Returned') && (
+              {(trackedBooking.status === 'Paid_Pending' || trackedBooking.status === 'Completed' || trackedBooking.status === 'Active' || trackedBooking.status === 'Returned') && (
                 <div className="mt-8 border-t border-slate-200 pt-8">
                   <h3 className="font-bold text-slate-900 text-lg mb-2 flex items-center"><ShieldCheck className="mr-2 text-cyan-600"/> Identity Verification (KYC)</h3>
                   
@@ -1413,7 +1744,7 @@ export default function App() {
                         ))}
                       </div>
 
-                      <button onClick={() => submitKycDocs()} disabled={kycUploading} className="w-full btn-primary text-white py-3 rounded-xl font-bold flex justify-center items-center">
+                      <button onClick={submitKycDocs} disabled={kycUploading} className="w-full btn-primary text-white py-3 rounded-xl font-bold flex justify-center items-center">
                         {kycUploading ? <RefreshCw className="animate-spin mr-2" size={18}/> : <Send className="mr-2" size={18}/>}
                         {kycUploading ? 'Uploading...' : 'Submit Documents for Review'}
                       </button>
@@ -1444,10 +1775,10 @@ export default function App() {
                 <div className="mt-8 border-t border-slate-200 pt-8 animate-fadeIn">
                   <h3 className="font-bold text-slate-900 text-lg mb-2 flex items-center"><Camera className="mr-2 text-cyan-600"/> Vehicle Condition Report (VCR)</h3>
                   <div className="bg-blue-50 p-6 rounded-2xl border border-blue-200">
-                    <p className="text-sm text-blue-800 mb-6 font-medium">Please capture images of the vehicle from 4 angles before starting your trip. This acts as physical evidence for the E-Agreement.</p>
+                    <p className="text-sm text-blue-800 mb-6 font-medium">Please capture images of the vehicle from 4 angles and the dashboard (odometer & fuel level) before starting your trip. This acts as physical evidence for the E-Agreement.</p>
                     
-                    <div className="grid grid-cols-2 gap-3 mb-6">
-                      {[{key: 'front', label: 'Front'}, {key: 'back', label: 'Rear'}, {key: 'left', label: 'Left'}, {key: 'right', label: 'Right'}].map((docType) => (
+                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 mb-6">
+                      {[{key: 'front', label: 'Front'}, {key: 'back', label: 'Rear'}, {key: 'left', label: 'Left'}, {key: 'right', label: 'Right'}, {key: 'odometer', label: 'Dashboard/Fuel'}].map((docType) => (
                         <div key={docType.key} className="border-2 border-dashed border-blue-300 rounded-xl p-3 text-center hover:bg-white transition-colors relative overflow-hidden group h-24 flex flex-col items-center justify-center bg-white/50">
                           {vcrDocs[docType.key] ? (
                             <div className="absolute inset-0">
@@ -1485,7 +1816,7 @@ export default function App() {
                       </button>
                     </div>
 
-                    <button onClick={() => submitVcr()} disabled={vcrUploading} className="w-full bg-slate-900 text-white py-3 rounded-xl font-bold flex justify-center items-center shadow-lg hover:bg-slate-800 transition-all">
+                    <button onClick={submitVcr} disabled={vcrUploading} className="w-full bg-slate-900 text-white py-3 rounded-xl font-bold flex justify-center items-center shadow-lg hover:bg-slate-800 transition-all">
                       {vcrUploading ? <RefreshCw className="animate-spin mr-2" size={18}/> : <FileText className="mr-2" size={18}/>}
                       {vcrUploading ? 'Saving Record...' : 'Agree & Start Rental'}
                     </button>
@@ -1497,10 +1828,10 @@ export default function App() {
                 <div className="mt-8 border-t border-slate-200 pt-8 animate-fadeIn">
                   <h3 className="font-bold text-slate-900 text-lg mb-2 flex items-center"><Undo2 className="mr-2 text-orange-600"/> Vehicle Return (Return VCR)</h3>
                   <div className="bg-orange-50 p-6 rounded-2xl border border-orange-200">
-                    <p className="text-sm text-orange-800 mb-6 font-medium">When you are ready to return the vehicle, park it at the designated drop-off location and capture 4 photos of the vehicle condition. This is required for your Security Deposit refund.</p>
+                    <p className="text-sm text-orange-800 mb-6 font-medium">When you are ready to return the vehicle, park it at the designated drop-off location and capture 5 photos of the vehicle condition (including dashboard). This is required for your Security Deposit refund.</p>
                     
-                    <div className="grid grid-cols-2 gap-3 mb-6">
-                      {[{key: 'front', label: 'Front'}, {key: 'back', label: 'Rear'}, {key: 'left', label: 'Left'}, {key: 'right', label: 'Right'}].map((docType) => (
+                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 mb-6">
+                      {[{key: 'front', label: 'Front'}, {key: 'back', label: 'Rear'}, {key: 'left', label: 'Left'}, {key: 'right', label: 'Right'}, {key: 'odometer', label: 'Dashboard/Fuel'}].map((docType) => (
                         <div key={docType.key} className="border-2 border-dashed border-orange-300 rounded-xl p-3 text-center hover:bg-white transition-colors relative overflow-hidden group h-24 flex flex-col items-center justify-center bg-white/50">
                           {returnVcrDocs[docType.key] ? (
                             <div className="absolute inset-0">
@@ -1518,7 +1849,7 @@ export default function App() {
                       ))}
                     </div>
 
-                    <button onClick={() => submitReturnVcr()} disabled={returnVcrUploading} className="w-full bg-orange-600 text-white py-3 rounded-xl font-bold flex justify-center items-center shadow-lg hover:bg-orange-700 transition-all">
+                    <button onClick={submitReturnVcr} disabled={returnVcrUploading} className="w-full bg-orange-600 text-white py-3 rounded-xl font-bold flex justify-center items-center shadow-lg hover:bg-orange-700 transition-all">
                       {returnVcrUploading ? <RefreshCw className="animate-spin mr-2" size={18}/> : <Undo2 className="mr-2" size={18}/>}
                       {returnVcrUploading ? 'Submitting Report...' : 'Confirm Vehicle Return'}
                     </button>
@@ -1570,7 +1901,7 @@ export default function App() {
           <div className="p-8 sm:p-12">
             <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-12 gap-6">
               <div>
-                <img src="logo afwaja 4.png" alt="Afwaja Logo" className="h-14 w-auto object-contain mb-2" onError={(e) => { e.target.style.display='none'; }}/>
+                <img src="https://platform-bcl.bsb-cdn.com/media/2026/03/01KKK1QDM602YYPNC4MPN4YSB1.png" alt="Afwaja Logo" className="h-14 w-auto object-contain mb-2" onError={(e) => { e.target.style.display='none'; }}/>
                 <p className="text-slate-500 font-medium">Official Invoice / Receipt</p>
               </div>
               <div className="sm:text-right">
@@ -1599,8 +1930,8 @@ export default function App() {
               </div>
               <div className="sm:text-right">
                 <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-3">Rental Details</p>
-                <p className="font-medium text-slate-600 mb-1">Pickup: <span className="font-bold text-slate-900">{new Date(booking.customer.startDate).toLocaleString()}</span></p>
-                <p className="font-medium text-slate-600 mb-1">Drop-off: <span className="font-bold text-slate-900">{new Date(booking.customer.endDate).toLocaleString()}</span></p>
+                <p className="font-medium text-slate-600 mb-1">Pickup: <span className="font-bold text-slate-900">{formatDateTime(booking.customer.startDate)}</span></p>
+                <p className="font-medium text-slate-600 mb-1">Drop-off: <span className="font-bold text-slate-900">{formatDateTime(booking.customer.endDate)}</span></p>
                 <p className="font-medium text-slate-600 mb-1">Location: <span className="font-bold text-slate-900">{booking.customer.pickupLocation.split(' (')[0]} → {booking.customer.returnLocation.split(' (')[0]}</span></p>
                 <p className="font-medium text-slate-600 mb-2">Dest: <span className="font-bold text-slate-900">{booking.customer.destination}</span></p>
               </div>
@@ -1619,11 +1950,21 @@ export default function App() {
                   <tr className="bg-white">
                     <td className="py-5 px-6">
                       <p className="brand font-bold text-lg text-slate-900">{booking.car.name}</p>
-                      <p className="text-slate-500 font-medium text-sm">Vehicle Rental Fee</p>
+                      <p className="text-slate-500 font-medium text-sm">Vehicle Rental Fee (MYR {booking.customer.appliedDailyRate || Math.round((booking.customer.totalPrice - (booking.customer.extraHoursFee || 0))/booking.customer.totalDays)}/day)</p>
                     </td>
                     <td className="py-5 px-6 text-center font-medium text-slate-700">{booking.customer.totalDays} Days</td>
-                    <td className="py-5 px-6 text-right font-bold text-lg text-slate-900">MYR {booking.customer.totalPrice}</td>
+                    <td className="py-5 px-6 text-right font-bold text-lg text-slate-900">MYR {booking.customer.totalPrice - (booking.customer.extraHoursFee || 0)}</td>
                   </tr>
+                  {(booking.customer.extraHours > 0) && (
+                    <tr className="bg-white">
+                      <td className="py-5 px-6">
+                        <p className="font-bold text-slate-900">Extra Hours Charge</p>
+                        <p className="text-slate-500 font-medium text-sm">Late return / hourly excess</p>
+                      </td>
+                      <td className="py-5 px-6 text-center font-medium text-slate-700">{booking.customer.extraHours} Hours</td>
+                      <td className="py-5 px-6 text-right font-bold text-lg text-slate-900">MYR {booking.customer.extraHoursFee}</td>
+                    </tr>
+                  )}
                   {(booking.customer.pickupFee > 0 || booking.customer.returnFee > 0) && (
                     <tr className="bg-white">
                       <td className="py-5 px-6">
@@ -1686,7 +2027,7 @@ export default function App() {
           <div className="p-8 sm:p-12">
             <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-12 gap-6">
               <div>
-                <img src="logo afwaja 4.png" alt="Afwaja Logo" className="h-14 w-auto object-contain mb-2" onError={(e) => { e.target.style.display='none'; }}/>
+                <img src="https://platform-bcl.bsb-cdn.com/media/2026/03/01KKK1QDM602YYPNC4MPN4YSB1.png" alt="Afwaja Logo" className="h-14 w-auto object-contain mb-2" onError={(e) => { e.target.style.display='none'; }}/>
                 <p className="text-slate-500 font-bold">INTERNAL USE ONLY</p>
               </div>
               <div className="sm:text-right">
@@ -1705,7 +2046,8 @@ export default function App() {
               <div className="sm:text-right">
                 <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-3">Booking Reference</p>
                 <p className="font-medium text-slate-600 mb-1">Customer: <span className="font-bold text-slate-900">{booking.customer.name}</span></p>
-                <p className="font-medium text-slate-600 mb-1">Dates: <span className="font-bold text-slate-900">{booking.customer.startDate} to {booking.customer.endDate}</span></p>
+                <p className="font-medium text-slate-600 mb-1">Dates: <span className="font-bold text-slate-900">{formatDateTime(booking.customer.startDate)} to {formatDateTime(booking.customer.endDate)}</span></p>
+                <p className="font-medium text-slate-600 mb-1">Duration: <span className="font-bold text-slate-900">{booking.customer.totalDays} Days {booking.customer.extraHours > 0 ? `+ ${booking.customer.extraHours} Hours` : ''}</span></p>
                 <p className="font-medium text-slate-600 mb-1">Pickup: <span className="font-bold text-slate-900">{booking.customer.pickupLocation.split(' (')[0]}</span></p>
                 <p className="font-medium text-slate-600 mb-1">Drop-off: <span className="font-bold text-slate-900">{booking.customer.returnLocation.split(' (')[0]}</span></p>
               </div>
@@ -1755,10 +2097,13 @@ export default function App() {
 
     return (
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-24 animate-fadeIn font-dm">
-        <div className="mb-10">
+        <div className="mb-10 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
           <h1 className="brand text-3xl sm:text-4xl font-bold text-slate-900 flex items-center">
             <LayoutDashboard className="mr-3 text-cyan-600 w-8 h-8"/> Admin Portal
           </h1>
+          <button onClick={handleInjectDummyData} className="bg-indigo-600 text-white px-5 py-2.5 rounded-xl text-sm font-bold flex items-center shadow-lg hover:bg-indigo-700 hover:scale-105 transition-all">
+            <Sparkles size={16} className="mr-2"/> Inject Dummy Data
+          </button>
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-10">
@@ -1779,6 +2124,230 @@ export default function App() {
             <p className="brand text-3xl font-bold">MYR {successfulBookings.reduce((sum, b) => sum + b.profit, 0)}</p>
           </div>
         </div>
+
+        {managingBooking && !verifyingKyc && !viewingVcr && (
+          <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+            <div className="bg-white rounded-3xl w-full max-w-2xl shadow-2xl overflow-hidden max-h-[90vh] overflow-y-auto">
+              <div className="bg-slate-900 p-6 flex justify-between items-center text-white sticky top-0 z-10">
+                <h3 className="brand text-xl font-bold">Fulfillment Assignment</h3>
+                <button onClick={() => setManagingBooking(null)} className="text-slate-400 hover:text-white"><X size={24}/></button>
+              </div>
+              <div className="p-8">
+                <div className="bg-cyan-50 p-4 rounded-xl mb-6">
+                  <p className="font-bold text-slate-900 text-lg">{managingBooking.car.name}</p>
+                  <button onClick={() => handleCopyBroadcast(managingBooking)} className="mt-3 w-full bg-white border border-cyan-200 text-cyan-700 py-2.5 rounded-lg font-bold flex justify-center items-center">
+                    <MessageCircle size={18} className="mr-2"/> Copy WhatsApp Blast Message
+                  </button>
+                </div>
+
+                <div className="flex gap-4 mb-6">
+                  <label className={`flex-1 flex justify-center py-3 rounded-xl border-2 cursor-pointer font-bold ${fulfillmentType === 'self' ? 'border-cyan-500 bg-cyan-50 text-cyan-700' : 'border-slate-200 text-slate-500'}`}>
+                    <input type="radio" className="hidden" checked={fulfillmentType === 'self'} onChange={() => setFulfillmentType('self')} /> Own Fleet
+                  </label>
+                  <label className={`flex-1 flex justify-center py-3 rounded-xl border-2 cursor-pointer font-bold ${fulfillmentType === 'supplier' ? 'border-cyan-500 bg-cyan-50 text-cyan-700' : 'border-slate-200 text-slate-500'}`}>
+                    <input type="radio" className="hidden" checked={fulfillmentType === 'supplier'} onChange={() => setFulfillmentType('supplier')} /> Sub-Supplier
+                  </label>
+                </div>
+
+                <form onSubmit={handleConfirmSupplier}>
+                  {fulfillmentType === 'supplier' ? (
+                    <>
+                      <div className="grid grid-cols-2 gap-4 mb-6">
+                        <div>
+                          <label className="block text-sm font-bold text-slate-600 mb-1">Supplier Name</label>
+                          <input required type="text" className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 focus:ring-2 focus:ring-cyan-500 font-medium" value={supplierDetails.name} onChange={e => setSupplierDetails({...supplierDetails, name: e.target.value})} placeholder="E.g. Din Rental"/>
+                        </div>
+                        <div>
+                          <label className="block text-sm font-bold text-slate-600 mb-1">Net Cost (MYR)</label>
+                          <input required type="number" min="0" className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 focus:ring-2 focus:ring-cyan-500 font-medium" value={supplierDetails.cost} onChange={e => setSupplierDetails({...supplierDetails, cost: e.target.value})} placeholder="E.g. 150"/>
+                        </div>
+                      </div>
+                      {supplierDetails.cost && (
+                        <div className="mb-6 p-4 bg-emerald-50 rounded-xl border border-emerald-100 flex justify-between items-center">
+                          <p className="font-bold text-emerald-800">Your Profit Margin:</p>
+                          <p className="brand text-2xl font-bold text-emerald-600">MYR {(managingBooking.customer.totalPrice + managingBooking.customer.pickupFee + managingBooking.customer.returnFee) - parseFloat(supplierDetails.cost || 0)}</p>
+                        </div>
+                      )}
+                    </>
+                  ) : (
+                    <div className="mb-6 p-4 bg-emerald-50 rounded-xl border border-emerald-100 flex justify-between items-center">
+                      <div>
+                        <p className="font-bold text-emerald-800">Using Own Inventory</p>
+                        <p className="text-sm text-emerald-600 font-medium">100% Profit Margin</p>
+                      </div>
+                      <p className="brand text-2xl font-bold text-emerald-600">MYR {managingBooking.customer.totalPrice + managingBooking.customer.pickupFee + managingBooking.customer.returnFee}</p>
+                    </div>
+                  )}
+
+                  <div className="flex gap-4">
+                    <button type="submit" className="flex-1 btn-primary text-white py-3.5 rounded-xl font-bold flex justify-center items-center shadow-md">
+                      <CheckCircle size={20} className="mr-2"/> Confirm Vehicle
+                    </button>
+                    <button type="button" onClick={() => handleRejectBooking(managingBooking)} className="px-6 bg-red-100 text-red-700 py-3.5 rounded-xl font-bold hover:bg-red-200 transition-colors flex justify-center items-center">
+                      <XCircle size={20} className="mr-1"/> Reject & Refund
+                    </button>
+                  </div>
+                </form>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {verifyingKyc && (
+          <div className="fixed inset-0 bg-slate-900/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+            <div className="bg-white rounded-3xl w-full max-w-4xl shadow-2xl overflow-hidden max-h-[90vh] overflow-y-auto">
+              <div className="bg-purple-900 p-6 flex justify-between items-center text-white sticky top-0 z-10">
+                <h3 className="brand text-xl font-bold flex items-center"><FileCheck className="mr-2"/> Identity Verification Review</h3>
+                <button onClick={() => setVerifyingKyc(null)} className="text-purple-300 hover:text-white"><X size={24}/></button>
+              </div>
+              <div className="p-8">
+                <div className="flex justify-between items-center mb-6">
+                   <div>
+                     <div className="flex items-center gap-2">
+                       <p className="font-bold text-lg text-slate-900">{verifyingKyc.customer.name}</p>
+                       {verifyingKyc.customer.customerType === 'international' ? (
+                         <span className="bg-blue-100 text-blue-800 text-xs px-2 py-0.5 rounded-md font-bold flex items-center border border-blue-200"><Globe size={12} className="mr-1"/> Tourist</span>
+                       ) : (
+                         <span className="bg-slate-100 text-slate-600 text-xs px-2 py-0.5 rounded-md font-bold border border-slate-200">Local</span>
+                       )}
+                     </div>
+                     <p className="text-slate-500 text-sm mt-1">ID: {verifyingKyc.id}</p>
+                   </div>
+                   <div className="bg-yellow-50 text-yellow-700 px-4 py-2 rounded-lg font-bold border border-yellow-200 text-sm">Awaiting Review</div>
+                </div>
+
+                <div className="grid md:grid-cols-3 gap-6 mb-8">
+                  {[
+                    { key: 'ic', label: verifyingKyc.customer.customerType === 'international' ? 'Passport / ID' : 'MyKad (Front)' },
+                    { key: 'license', label: verifyingKyc.customer.customerType === 'international' ? 'Driving License / IDP' : 'Driving License' },
+                    { key: 'bill', label: verifyingKyc.customer.customerType === 'international' ? 'Flight / Hotel Booking' : 'Utility Bill' }
+                  ].map(doc => (
+                    <div key={doc.key} className="border border-slate-200 p-2 rounded-xl bg-slate-50">
+                      <p className="text-xs font-bold text-slate-500 uppercase text-center mb-2">{doc.label}</p>
+                      <div className="aspect-[4/3] bg-slate-200 rounded-lg overflow-hidden relative group">
+                        <img src={verifyingKyc.documents?.[doc.key]} alt={doc.key} className="w-full h-full object-cover" />
+                      </div>
+                    </div>
+                  ))}
+                </div>
+
+                <div className="flex gap-4">
+                  <button onClick={() => handleVerifyKyc(verifyingKyc.id, 'verified')} className="flex-1 bg-emerald-600 text-white py-4 rounded-xl font-bold flex justify-center items-center shadow-md hover:bg-emerald-700 transition-colors">
+                    <CheckCircle size={20} className="mr-2"/> Approve Documents
+                  </button>
+                  <button onClick={() => handleVerifyKyc(verifyingKyc.id, 'rejected')} className="px-8 bg-red-100 text-red-700 py-4 rounded-xl font-bold hover:bg-red-200 transition-colors flex justify-center items-center">
+                    <XCircle size={20} className="mr-2"/> Reject
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {viewingVcr && (
+          <div className="fixed inset-0 bg-slate-900/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+            <div className="bg-white rounded-3xl w-full max-w-3xl shadow-2xl overflow-hidden max-h-[90vh] overflow-y-auto">
+              <div className="bg-slate-900 p-6 flex justify-between items-center text-white sticky top-0 z-10">
+                <h3 className="brand text-xl font-bold flex items-center"><Camera className="mr-2"/> Initial VCR & E-Agreement</h3>
+                <button onClick={() => setViewingVcr(null)} className="text-slate-400 hover:text-white"><X size={24}/></button>
+              </div>
+              <div className="p-8">
+                <div className="flex justify-between items-center mb-6">
+                   <div>
+                     <p className="font-bold text-lg text-slate-900">{viewingVcr.car.name}</p>
+                     <p className="text-slate-500 text-sm">Customer: {viewingVcr.customer.name}</p>
+                   </div>
+                </div>
+
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-4 mb-8">
+                  {[
+                    { key: 'front', label: 'Front' },
+                    { key: 'back', label: 'Rear' },
+                    { key: 'left', label: 'Left' },
+                    { key: 'right', label: 'Right' },
+                    { key: 'odometer', label: 'Dashboard/Fuel' }
+                  ].map(doc => (
+                    <div key={doc.key} className="border border-slate-200 p-2 rounded-xl bg-slate-50">
+                      <p className="text-xs font-bold text-slate-500 uppercase text-center mb-2">{doc.label}</p>
+                      <div className="aspect-[4/3] bg-slate-200 rounded-lg overflow-hidden">
+                        <img src={viewingVcr.vcr?.[doc.key]} alt={doc.key} className="w-full h-full object-cover" />
+                      </div>
+                    </div>
+                  ))}
+                </div>
+
+                <div className="border border-slate-200 p-4 rounded-xl bg-slate-50 flex items-center justify-between mb-8">
+                  <div>
+                     <p className="text-xs font-bold text-slate-500 uppercase mb-2">Customer Digital Signature</p>
+                     <div className="bg-white border border-slate-200 rounded-lg p-2 inline-block">
+                        {viewingVcr.vcr?.signature ? (
+                           <img src={viewingVcr.vcr.signature} alt="Signature" className="h-20 object-contain" />
+                        ) : <span className="text-sm text-slate-400">No Signature</span>}
+                     </div>
+                  </div>
+                  <CheckCircle size={40} className="text-emerald-500 opacity-20" />
+                </div>
+
+                <button onClick={() => setViewingVcr(null)} className="w-full bg-slate-200 text-slate-800 py-4 rounded-xl font-bold hover:bg-slate-300 transition-colors">
+                  Close Window
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {viewingReturnVcr && (
+          <div className="fixed inset-0 bg-slate-900/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+            <div className="bg-white rounded-3xl w-full max-w-3xl shadow-2xl overflow-hidden max-h-[90vh] overflow-y-auto">
+              <div className="bg-orange-900 p-6 flex justify-between items-center text-white sticky top-0 z-10">
+                <h3 className="brand text-xl font-bold flex items-center"><Undo2 className="mr-2"/> Return VCR Inspection</h3>
+                <button onClick={() => setViewingReturnVcr(null)} className="text-orange-300 hover:text-white"><X size={24}/></button>
+              </div>
+              <div className="p-8">
+                <div className="flex justify-between items-center mb-6">
+                   <div>
+                     <p className="font-bold text-lg text-slate-900">{viewingReturnVcr.car.name}</p>
+                     <p className="text-slate-500 text-sm">Customer: {viewingReturnVcr.customer.name}</p>
+                   </div>
+                   <div className="text-right">
+                     <p className="text-xs font-bold text-slate-500">Deposit to Refund</p>
+                     <p className="brand text-2xl font-bold text-emerald-600">MYR {viewingReturnVcr.customer.deposit}</p>
+                   </div>
+                </div>
+
+                <div className="bg-orange-50 border border-orange-200 p-4 rounded-xl mb-6">
+                  <p className="text-sm text-orange-800 font-medium"><AlertTriangle className="inline w-4 h-4 mr-1"/> Please review the return photos below. Verify there are no new damages before refunding the deposit.</p>
+                </div>
+
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-4 mb-8">
+                  {[
+                    { key: 'front', label: 'Front' },
+                    { key: 'back', label: 'Rear' },
+                    { key: 'left', label: 'Left' },
+                    { key: 'right', label: 'Right' },
+                    { key: 'odometer', label: 'Dashboard/Fuel' }
+                  ].map(doc => (
+                    <div key={doc.key} className="border border-slate-200 p-2 rounded-xl bg-slate-50">
+                      <p className="text-xs font-bold text-slate-500 uppercase text-center mb-2">{doc.label}</p>
+                      <div className="aspect-[4/3] bg-slate-200 rounded-lg overflow-hidden">
+                        <img src={viewingReturnVcr.returnVcr?.[doc.key]} alt={doc.key} className="w-full h-full object-cover" />
+                      </div>
+                    </div>
+                  ))}
+                </div>
+
+                <div className="flex gap-4">
+                  <button onClick={() => handleApproveReturnAndRefund(viewingReturnVcr)} className="flex-1 bg-emerald-600 text-white py-4 rounded-xl font-bold hover:bg-emerald-700 transition-colors flex justify-center items-center shadow-md">
+                    <CheckCircle size={20} className="mr-2"/> Approve & Refund
+                  </button>
+                  <button onClick={() => setViewingReturnVcr(null)} className="px-8 bg-slate-100 text-slate-700 py-4 rounded-xl font-bold hover:bg-slate-200 transition-colors flex justify-center items-center">
+                    Close
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
 
         <div className="glass-card bg-white rounded-3xl shadow-sm border border-slate-200/60 overflow-hidden">
           <div className="p-8 border-b border-slate-100 bg-slate-50/50">
@@ -1887,10 +2456,10 @@ export default function App() {
     );
   };
 
-  const TermsView = () => (
+  const TermsView = ({ onBack }) => (
     <div className="max-w-4xl mx-auto px-4 py-24 animate-fadeIn font-dm">
-      <button onClick={() => setCurrentView('home')} className="text-cyan-600 font-bold mb-8 flex items-center hover:underline bg-white/50 px-4 py-2 rounded-lg inline-flex">
-        &larr; Back to Home
+      <button onClick={() => onBack ? onBack() : setCurrentView('home')} className="text-cyan-600 font-bold mb-8 flex items-center hover:underline bg-white/50 px-4 py-2 rounded-lg inline-flex">
+        &larr; {onBack ? 'Back to Booking Form' : 'Back to Home'}
       </button>
       
       <div className="bg-white rounded-3xl shadow-xl overflow-hidden border border-slate-200 p-8 sm:p-12">
@@ -1898,39 +2467,302 @@ export default function App() {
         
         <div className="space-y-8 text-slate-600 leading-relaxed">
           <section>
-            <h3 className="text-xl font-bold text-slate-900 mb-3 flex items-center gap-2"><ShieldCheck className="text-cyan-600"/> 1. Introduction and General Policy</h3>
-            <p>These terms set out the rules for utilizing Afwaja Rental services. By proceeding with a booking, the customer fully agrees to the terms below. The rented vehicle may only be driven within permitted areas in Peninsular Malaysia.</p>
-          </section>
-
-          <section>
-            <h3 className="text-xl font-bold text-slate-900 mb-3 flex items-center gap-2"><CreditCard className="text-cyan-600"/> 2. Payment and Security Deposit</h3>
+            <h3 className="text-xl font-bold text-slate-900 mb-3 flex items-center gap-2"><Calendar className="text-cyan-600"/> 1. Booking & Cancellation Policy</h3>
             <ul className="list-disc pl-5 space-y-2">
-              <li>Full payment (rental rate + logistics + security deposit) must be cleared before the vehicle is handed over.</li>
-              <li>The Security Deposit will be refunded within <strong>1-3 business days</strong> after the vehicle is returned in good condition, without damages, traffic fines, or fuel shortages.</li>
-              <li>In the event of cancellation due to vehicle unavailability on our end, a 100% full refund will be issued.</li>
+              <li>Online bookings will be confirmed via email within one (1) hour. If the vehicle is unavailable, a full refund will be issued.</li>
+              <li><strong>Cancellation:</strong> 24 hours before pickup = Full Refund. Less than 24 hours or No Show = Strictly No Refund.</li>
+              <li>Date changes or rescheduling are subject to vehicle availability.</li>
+              <li><strong>Vehicle Allocation & Display:</strong> Images shown on the website are for illustration and reference purposes only. The actual vehicle assigned may differ in color and minor specifications, but we guarantee the same car model will be provided.</li>
             </ul>
           </section>
 
           <section>
-            <h3 className="text-xl font-bold text-slate-900 mb-3 flex items-center gap-2"><FileCheck className="text-cyan-600"/> 3. Driver Requirements & KYC Documents</h3>
-            <p>Drivers must be 21 years of age or older and possess a valid Malaysian Driving License (Class D) or a recognized <strong>International Driving Permit (IDP)</strong>. Customers are required to upload their Passport/ID, Driving License, and Flight/Hotel Itinerary to our portal for insurance verification and KYC tracking.</p>
+            <h3 className="text-xl font-bold text-slate-900 mb-3 flex items-center gap-2"><User className="text-cyan-600"/> 2. Driver Requirements & Licenses</h3>
+            <ul className="list-disc pl-5 space-y-2">
+              <li>Drivers must be between <strong>21 to 65 years old</strong>. Probationary (P) licenses are strictly not allowed.</li>
+              <li>Foreigners with a valid driving license in English are permitted to drive in Malaysia for a maximum of 3 months.</li>
+              <li><strong>Additional Drivers:</strong> Subject to a charge of RM10/day. All additional drivers must be registered. Unregistered drivers found driving the vehicle will incur a <strong>RM500 penalty</strong>.</li>
+            </ul>
           </section>
 
           <section>
-            <h3 className="text-xl font-bold text-slate-900 mb-3 flex items-center gap-2"><AlertTriangle className="text-cyan-600"/> 4. Damages, Accidents, and Fines</h3>
+            <h3 className="text-xl font-bold text-slate-900 mb-3 flex items-center gap-2"><FileCheck className="text-cyan-600"/> 3. Verification & Pickup (KYC)</h3>
             <ul className="list-disc pl-5 space-y-2">
-              <li>The renter is fully responsible for any traffic summons, tolls, or parking violations incurred during the rental period. These costs will be deducted from the Security Deposit.</li>
-              <li>In the event of an accident caused by the renter's negligence (including tire punctures/blowouts), the renter is liable for the repair cost (Excess) as per the vehicle's insurance policy terms.</li>
+              <li>Only the individual who made the booking is allowed to collect the vehicle. Required documents: IC/Passport, Driving License, and Utility Bill/Business Card.</li>
+              <li>Renters <strong>must inspect the vehicle (VCR)</strong> upon collection. Any damages not reported immediately will be considered the renter's responsibility.</li>
             </ul>
+          </section>
+
+          <section>
+            <h3 className="text-xl font-bold text-slate-900 mb-3 flex items-center gap-2"><ShieldCheck className="text-cyan-600"/> 4. Payment Channels, Security Deposit & Refunds</h3>
+            <ul className="list-disc pl-5 space-y-2">
+              <li><strong>Payment Channels:</strong> Malaysian citizens must complete payments securely via <strong>FPX (Online Banking)</strong>. International tourists must complete payments via <strong>Credit/Debit Card</strong> to facilitate seamless international deposit refunds.</li>
+              <li>A security deposit of RM100 to RM400 (depending on the car category) is required before handover.</li>
+              <li><strong>For Malaysian Citizens:</strong> The deposit will be refunded via online bank transfer within <strong>3 to 14 working days</strong> after the vehicle is returned.</li>
+              <li><strong>For International Tourists:</strong> The deposit will be refunded/reversed directly to the <strong>Credit/Debit Card</strong> used during booking. The processing time is subject to your respective bank's policy (usually 3-14 days).</li>
+              <li>All refunds are strictly subject to the vehicle being returned in good condition, free from new damages, and clear of any traffic summons.</li>
+            </ul>
+          </section>
+
+          <section>
+            <h3 className="text-xl font-bold text-slate-900 mb-3 flex items-center gap-2"><Clock className="text-cyan-600"/> 5. Time, Mileage & Delivery</h3>
+            <ul className="list-disc pl-5 space-y-2">
+              <li><strong>Early Return:</strong> No refunds will be provided for returning the vehicle earlier than the agreed rental period.</li>
+              <li><strong>Late Return:</strong> An extra hour charge of <strong>10% of the daily rate</strong> applies per hour. If the extra charges exceed the daily rate, a full 1-day charge will apply.</li>
+              <li><strong>Mileage Limit:</strong> Rentals include a limit of 300 km per day. Excess mileage is charged at RM1 per km.</li>
+              <li><strong>Delivery & Pickup Fees:</strong>
+                <ul className="list-[circle] pl-5 mt-1 space-y-1">
+                  <li><strong>Local Citizens:</strong> Calculated based on distance from our Cyberjaya HQ (Zone A: RM30, Zone B: RM50, Zone C: RM80, KLIA: RM100).</li>
+                  <li><strong>International Tourists:</strong> Fixed rates apply for major transit hubs (KLIA/KLIA2: RM100, KL Sentral/TBS: RM70, KL City Centre: RM100).</li>
+                </ul>
+              </li>
+            </ul>
+          </section>
+
+          <section>
+            <h3 className="text-xl font-bold text-slate-900 mb-3 flex items-center gap-2"><AlertTriangle className="text-cyan-600"/> 6. Insurance & Accident Excess</h3>
+            <ul className="list-disc pl-5 space-y-2">
+              <li>All vehicles are insured. However, in the event of an accident, the renter is responsible for the Non-Waivable Excess according to the vehicle group:
+                <ul className="list-[circle] pl-5 mt-2 space-y-1 text-sm bg-slate-50 p-4 rounded-xl border border-slate-100">
+                  <li><strong>Group A (Max RM4,000):</strong> Perodua Axia, Myvi, Bezza, Ativa</li>
+                  <li><strong>Group B (Max RM6,000):</strong> Toyota Yaris, Vios, Honda City (Hatchback/Sedan)</li>
+                  <li><strong>Group C (Max RM10,000):</strong> Perodua Aruz, Alza, Proton X50, X70, Honda HRV, CRV, Nissan Serena, Mitsubishi Xpander, Toyota Innova Zenix</li>
+                  <li><strong>Group D (Max RM20,000):</strong> Toyota Vellfire, Hyundai Staria, Starex</li>
+                </ul>
+              </li>
+              <li>A police report must be lodged within 24 hours. An Accident Management Fee (RM1,000 - RM5,000) applies for insurance claims, communication, and loss of income.</li>
+              <li><strong>Exceptions:</strong> Insurance DOES NOT cover negligence, tire punctures, wrong fuel, dead batteries due to negligence, undercarriage, glass, or roof damages. Insurance only covers moving collisions between two vehicles.</li>
+            </ul>
+          </section>
+
+          <section>
+            <h3 className="text-xl font-bold text-slate-900 mb-3 flex items-center gap-2"><XCircle className="text-cyan-600"/> 7. Penalties & Additional Charges</h3>
+            <ul className="list-disc pl-5 space-y-2">
+              <li><strong>Fuel & Cleanliness:</strong> Must be returned at the same fuel level (or face up to RM300 charge). Extremely dirty vehicles will be charged RM300.</li>
+              <li><strong>Prohibited Items:</strong> Smoking, vaping, and carrying pets are strictly prohibited (RM500 penalty applies).</li>
+              <li><strong>Traffic Fines:</strong> Renters are fully responsible for PDRM, JPJ, and local council fines. A RM300 penalty applies for late settlements.</li>
+              <li>Any use of the vehicle for criminal activities makes the renter liable for the full value of the vehicle.</li>
+            </ul>
+          </section>
+
+          <section>
+            <h3 className="text-xl font-bold text-slate-900 mb-3 flex items-center gap-2"><Shield className="text-cyan-600"/> 8. Personal Data & Privacy</h3>
+            <p>By proceeding with the rental, the renter officially agrees to all Terms and Conditions stated above. Personal data provided may be shared with relevant agencies for security and debt collection purposes in the event of payment default.</p>
+          </section>
+        </div>
+
+        <div className="mt-12 pt-8 border-t border-slate-200 text-center text-sm font-medium text-slate-500">
+          &copy; {new Date().getFullYear()} Afwaja Car Rental. These Terms & Conditions are subject to amendment from time to time without prior notice.
+        </div>
+      </div>
+    </div>
+  );
+
+  const PrivacyPolicyView = ({ onBack }) => (
+    <div className="max-w-4xl mx-auto px-4 py-24 animate-fadeIn font-dm">
+      <button onClick={() => onBack ? onBack() : setCurrentView('home')} className="text-cyan-600 font-bold mb-8 flex items-center hover:underline bg-white/50 px-4 py-2 rounded-lg inline-flex">
+        &larr; {onBack ? 'Back to Booking Form' : 'Back to Home'}
+      </button>
+      
+      <div className="bg-white rounded-3xl shadow-xl overflow-hidden border border-slate-200 p-8 sm:p-12">
+        <div className="mb-8 border-b border-slate-100 pb-6">
+          <h1 className="brand text-3xl sm:text-4xl font-bold text-slate-900 mb-2">Privacy Policy</h1>
+          <p className="text-slate-500 font-medium">In compliance with the Personal Data Protection Act 2010 (PDPA) Malaysia.</p>
+        </div>
+        
+        <div className="space-y-8 text-slate-600 leading-relaxed">
+          <section>
+            <h3 className="text-lg font-bold text-slate-900 mb-2 flex items-center gap-2"><Shield className="text-cyan-600 w-5 h-5"/> Introduction</h3>
+            <p>Afwaja Car Rental ("we", "our", "us") respects your privacy and is committed to protecting your personal data. This privacy policy explains how we collect, process, and protect your personal data when you use our website, mobile application, or rental services.</p>
+          </section>
+
+          <section>
+            <h3 className="text-lg font-bold text-slate-900 mb-2 flex items-center gap-2"><FileText className="text-cyan-600 w-5 h-5"/> Information We Collect</h3>
+            <p className="mb-2">To provide you with secure and reliable rental services, we collect the following (KYC - Know Your Customer) data:</p>
+            <ul className="list-disc pl-5 space-y-1">
+              <li><strong>Identity Information:</strong> Name, National ID (MyKad), Passport details, Date of Birth.</li>
+              <li><strong>Contact Information:</strong> Email address, Phone number, Residential address.</li>
+              <li><strong>Driving Records:</strong> Driving license details (Local or International).</li>
+              <li><strong>Financial Data:</strong> Bank account details (for deposit refunds). Payment card details are handled securely by our payment gateways (ToyyibPay/Stripe) and are NOT stored on our servers.</li>
+              <li><strong>Other:</strong> Utility bills or travel itineraries for residential verification.</li>
+            </ul>
+          </section>
+
+          <section>
+            <h3 className="text-lg font-bold text-slate-900 mb-2 flex items-center gap-2"><Settings className="text-cyan-600 w-5 h-5"/> How We Use Your Data</h3>
+            <p>Your personal data is strictly used for:</p>
+            <ul className="list-disc pl-5 space-y-1 mt-2">
+              <li>Processing your car rental bookings and agreements.</li>
+              <li>Verifying your identity for insurance coverage and fraud prevention.</li>
+              <li>Processing security deposit refunds.</li>
+              <li>Communicating with you regarding your booking status or emergencies.</li>
+              <li>Complying with legal obligations (e.g., PDRM or JPJ traffic summons).</li>
+            </ul>
+          </section>
+
+          <section>
+            <h3 className="text-lg font-bold text-slate-900 mb-2 flex items-center gap-2"><Users className="text-cyan-600 w-5 h-5"/> Data Sharing & Disclosure</h3>
+            <p>We do not sell your personal data. We only share your data with trusted third parties under the following circumstances:</p>
+            <ul className="list-disc pl-5 space-y-1 mt-2">
+              <li><strong>Authorities:</strong> Police (PDRM) or road transport departments (JPJ) in the event of accidents, criminal investigations, or unpaid traffic summons.</li>
+              <li><strong>Insurance Providers:</strong> For processing claims in the event of an accident.</li>
+              <li><strong>Payment Gateways:</strong> To facilitate secure online transactions.</li>
+            </ul>
+          </section>
+
+          <section>
+            <h3 className="text-lg font-bold text-slate-900 mb-2 flex items-center gap-2"><CheckCircle className="text-cyan-600 w-5 h-5"/> Data Security</h3>
+            <p>We implement appropriate technical and organizational security measures to protect your personal data against unauthorized access, alteration, or disclosure. All uploaded KYC documents are securely stored in our cloud storage and automatically watermarked to prevent misuse.</p>
+          </section>
+
+          <section>
+            <p className="text-sm bg-slate-50 p-4 rounded-xl border border-slate-100 font-medium">
+              If you have any questions regarding your personal data or wish to request data deletion after your rental is fully completed, please contact us at <strong>afwajatrading@gmail.com</strong>.
+            </p>
           </section>
         </div>
       </div>
     </div>
   );
 
+  const FaqView = () => {
+    const faqs = [
+      {
+        q: "What documents do I need to rent a car?",
+        a: "For Malaysians: MyKad, a valid Class D Driving License, and a latest utility bill. For International Tourists: Passport, valid Driving License / International Driving Permit (IDP), and Flight/Hotel itinerary."
+      },
+      {
+        q: "Do I need to pay a security deposit?",
+        a: "Yes, a refundable security deposit between RM100 to RM400 is required depending on the vehicle group. It will be fully refunded within 3-14 working days after the vehicle is returned without damages or summons."
+      },
+      {
+        q: "Do you provide car delivery to the airport or hotel?",
+        a: "Absolutely! We deliver to KLIA/KLIA2, KL Sentral, TBS, and various zones within the Klang Valley. Delivery fees vary based on the distance from our Cyberjaya HQ."
+      },
+      {
+        q: "Can I drive the rental car out of Malaysia?",
+        a: "No, our rental vehicles are strictly permitted to be driven within Peninsular Malaysia only. Driving into Thailand or Singapore is prohibited."
+      },
+      {
+        q: "What happens if I return the car late?",
+        a: "A late return fee of 10% of your daily rental rate is charged per hour. If the accumulated hourly charges exceed the daily rate, you will be charged for a full day."
+      },
+      {
+        q: "What should I do in case of an accident or breakdown?",
+        a: "Please ensure your safety first. Then, contact our 24/7 support team immediately. For accidents, you must lodge a police report within 24 hours to proceed with insurance claims."
+      }
+    ];
+
+    return (
+      <div className="max-w-3xl mx-auto px-4 py-24 animate-fadeIn font-dm">
+        <button onClick={() => setCurrentView('home')} className="text-cyan-600 font-bold mb-8 flex items-center hover:underline bg-white/50 px-4 py-2 rounded-lg inline-flex">
+          &larr; Back to Home
+        </button>
+        
+        <div className="text-center mb-12">
+          <div className="w-16 h-16 bg-cyan-100 rounded-full flex items-center justify-center mx-auto mb-4">
+            <MessageCircle className="w-8 h-8 text-cyan-600" />
+          </div>
+          <h1 className="brand text-3xl sm:text-4xl font-bold text-slate-900 mb-4">Frequently Asked Questions</h1>
+          <p className="text-slate-600 text-lg">Everything you need to know about renting with Afwaja.</p>
+        </div>
+
+        <div className="space-y-4">
+          {faqs.map((faq, index) => (
+            <div key={index} className="bg-white rounded-2xl shadow-sm border border-slate-200 p-6 hover:border-cyan-300 transition-colors">
+              <h3 className="font-bold text-slate-900 text-lg mb-2 flex items-start gap-3">
+                <span className="text-cyan-500 font-bold text-xl leading-none">Q.</span> {faq.q}
+              </h3>
+              <div className="pl-7 text-slate-600 leading-relaxed">
+                <p>{faq.a}</p>
+              </div>
+            </div>
+          ))}
+        </div>
+        
+        <div className="mt-12 bg-slate-900 text-white rounded-3xl p-8 text-center shadow-xl">
+          <h3 className="brand text-2xl font-bold mb-2">Still have questions?</h3>
+          <p className="text-slate-400 mb-6">Our support team is ready to help you 24/7.</p>
+          <button onClick={() => { setCurrentView('contact'); window.scrollTo(0,0); }} className="bg-cyan-600 hover:bg-cyan-500 text-white px-8 py-3 rounded-xl font-bold transition-colors">
+            Contact Us
+          </button>
+        </div>
+      </div>
+    );
+  };
+
+  const ContactView = () => (
+    <div className="max-w-3xl mx-auto px-4 py-24 animate-fadeIn font-dm">
+      <button onClick={() => setCurrentView('home')} className="text-cyan-600 font-bold mb-8 flex items-center hover:underline bg-white/50 px-4 py-2 rounded-lg inline-flex">
+        &larr; Back to Home
+      </button>
+
+      <div className="text-center mb-12">
+        <h1 className="brand text-4xl sm:text-5xl font-bold text-slate-900 mb-4">Get in Touch</h1>
+        <p className="text-slate-600 text-lg leading-relaxed max-w-2xl mx-auto">
+          Whether you need help with your booking, have a special request, or require roadside assistance, our team is always here for you.
+        </p>
+      </div>
+
+      <div className="space-y-6 max-w-xl mx-auto">
+        <div className="bg-white p-6 sm:p-8 rounded-3xl shadow-sm border border-slate-200 flex flex-col sm:flex-row items-center sm:items-start text-center sm:text-left gap-6 hover:border-cyan-300 transition-all hover:-translate-y-1">
+          <div className="w-16 h-16 bg-cyan-50 rounded-full flex items-center justify-center flex-shrink-0">
+            <Phone className="text-cyan-600 w-8 h-8" />
+          </div>
+          <div>
+            <h4 className="font-bold text-slate-900 text-xl mb-1">Phone / WhatsApp</h4>
+            <p className="text-slate-600 mb-2">Mon-Sun: 24/7 Support</p>
+            <a href="tel:0338530080" className="brand text-3xl font-bold text-cyan-600 hover:underline">03-38530080</a>
+          </div>
+        </div>
+
+        <div className="bg-white p-6 sm:p-8 rounded-3xl shadow-sm border border-slate-200 flex flex-col sm:flex-row items-center sm:items-start text-center sm:text-left gap-6 hover:border-cyan-300 transition-all hover:-translate-y-1">
+          <div className="w-16 h-16 bg-cyan-50 rounded-full flex items-center justify-center flex-shrink-0">
+            <Mail className="text-cyan-600 w-8 h-8" />
+          </div>
+          <div>
+            <h4 className="font-bold text-slate-900 text-xl mb-1">Email Address</h4>
+            <p className="text-slate-600 mb-2">Drop us a line anytime.</p>
+            <a href="mailto:afwajatrading@gmail.com" className="brand text-xl font-bold text-cyan-600 hover:underline">afwajatrading@gmail.com</a>
+          </div>
+        </div>
+
+        <div className="bg-white p-6 sm:p-8 rounded-3xl shadow-sm border border-slate-200 flex flex-col sm:flex-row items-center sm:items-start text-center sm:text-left gap-6 hover:border-cyan-300 transition-all hover:-translate-y-1">
+          <div className="w-16 h-16 bg-cyan-50 rounded-full flex items-center justify-center flex-shrink-0">
+            <MapPin className="text-cyan-600 w-8 h-8" />
+          </div>
+          <div>
+            <h4 className="font-bold text-slate-900 text-xl mb-1">HQ Location</h4>
+            <p className="text-slate-600 leading-relaxed text-lg">
+              Cyberjaya,<br />
+              Selangor Darul Ehsan,<br />
+              Malaysia
+            </p>
+          </div>
+        </div>
+
+        <div className="bg-white p-6 sm:p-8 rounded-3xl shadow-sm border border-slate-200 flex flex-col sm:flex-row items-center sm:items-start text-center sm:text-left gap-6 hover:border-cyan-300 transition-all hover:-translate-y-1">
+          <div className="w-16 h-16 bg-cyan-50 rounded-full flex items-center justify-center flex-shrink-0">
+            <Globe className="text-cyan-600 w-8 h-8" />
+          </div>
+          <div>
+            <h4 className="font-bold text-slate-900 text-xl mb-1">Social Media</h4>
+            <p className="text-slate-600 mb-3 text-lg">Follow us for latest updates & promos.</p>
+            <div className="flex flex-wrap justify-center sm:justify-start gap-4">
+              <a href="https://instagram.com/carrentalcyber" target="_blank" rel="noopener noreferrer" className="bg-slate-50 border border-slate-200 px-4 py-2 rounded-lg brand font-bold text-cyan-600 hover:bg-cyan-50 hover:border-cyan-200 transition-colors">Instagram ↗</a>
+              <a href="https://tiktok.com/@afwajacarrental" target="_blank" rel="noopener noreferrer" className="bg-slate-50 border border-slate-200 px-4 py-2 rounded-lg brand font-bold text-cyan-600 hover:bg-cyan-50 hover:border-cyan-200 transition-colors">TikTok ↗</a>
+              <a href="https://facebook.com/afwajatrading" target="_blank" rel="noopener noreferrer" className="bg-slate-50 border border-slate-200 px-4 py-2 rounded-lg brand font-bold text-cyan-600 hover:bg-cyan-50 hover:border-cyan-200 transition-colors">Facebook ↗</a>
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+  );
+
   return (
     <div className="min-h-screen gradient-bg font-sans text-slate-800 selection:bg-cyan-200">
-      <Navbar />
+      {Navbar()}
       
       <div className="fixed bottom-6 right-6 z-50 space-y-3 font-dm">
         {notifications.map(note => (
@@ -1948,236 +2780,17 @@ export default function App() {
         {currentView === 'home' && HomeView()}
         {currentView === 'booking' && BookingView()}
         {currentView === 'request-success' && RequestSuccessView()}
+        {currentView === 'thank-you' && ThankYouView()} 
         {currentView === 'track' && CustomerTrackView()}
         {currentView === 'payment' && PaymentView()}
         {currentView === 'invoice' && InvoiceView()}
         {currentView === 'admin' && AdminDashboard()}
         {currentView === 'supplier-voucher' && SupplierVoucherView()}
         {currentView === 'terms' && TermsView()}
+        {currentView === 'privacy' && PrivacyPolicyView()}
+        {currentView === 'faq' && FaqView()}
+        {currentView === 'contact' && ContactView()}
       </main>
-
-      {/* POPUP UNTUK ADMIN ASSIGNMENT / REVIEW */}
-      {managingBooking && !verifyingKyc && !viewingVcr && (
-        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[100] flex items-center justify-center p-4">
-          <div className="bg-white rounded-3xl w-full max-w-2xl shadow-2xl overflow-hidden max-h-[90vh] overflow-y-auto">
-            <div className="bg-slate-900 p-6 flex justify-between items-center text-white sticky top-0 z-10">
-              <h3 className="brand text-xl font-bold">Fulfillment Assignment</h3>
-              <button onClick={() => setManagingBooking(null)} className="text-slate-400 hover:text-white"><X size={24}/></button>
-            </div>
-            <div className="p-8">
-              <div className="bg-cyan-50 p-4 rounded-xl mb-6">
-                <p className="font-bold text-slate-900 text-lg">{managingBooking.car.name}</p>
-                <button onClick={() => handleCopyBroadcast(managingBooking)} className="mt-3 w-full bg-white border border-cyan-200 text-cyan-700 py-2.5 rounded-lg font-bold flex justify-center items-center">
-                  <MessageCircle size={18} className="mr-2"/> Copy WhatsApp Blast Message
-                </button>
-              </div>
-
-              <div className="flex gap-4 mb-6">
-                <label className={`flex-1 flex justify-center py-3 rounded-xl border-2 cursor-pointer font-bold ${fulfillmentType === 'self' ? 'border-cyan-500 bg-cyan-50 text-cyan-700' : 'border-slate-200 text-slate-500'}`}>
-                  <input type="radio" className="hidden" checked={fulfillmentType === 'self'} onChange={() => setFulfillmentType('self')} /> Own Fleet
-                </label>
-                <label className={`flex-1 flex justify-center py-3 rounded-xl border-2 cursor-pointer font-bold ${fulfillmentType === 'supplier' ? 'border-cyan-500 bg-cyan-50 text-cyan-700' : 'border-slate-200 text-slate-500'}`}>
-                  <input type="radio" className="hidden" checked={fulfillmentType === 'supplier'} onChange={() => setFulfillmentType('supplier')} /> Sub-Supplier
-                </label>
-              </div>
-
-              <form onSubmit={handleConfirmSupplier}>
-                {fulfillmentType === 'supplier' ? (
-                  <>
-                    <div className="grid grid-cols-2 gap-4 mb-6">
-                      <div>
-                        <label className="block text-sm font-bold text-slate-600 mb-1">Supplier Name</label>
-                        <input required type="text" className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 focus:ring-2 focus:ring-cyan-500 font-medium" value={supplierDetails.name} onChange={e => setSupplierDetails({...supplierDetails, name: e.target.value})} placeholder="E.g. Din Rental"/>
-                      </div>
-                      <div>
-                        <label className="block text-sm font-bold text-slate-600 mb-1">Net Cost (MYR)</label>
-                        <input required type="number" min="0" className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 focus:ring-2 focus:ring-cyan-500 font-medium" value={supplierDetails.cost} onChange={e => setSupplierDetails({...supplierDetails, cost: e.target.value})} placeholder="E.g. 150"/>
-                      </div>
-                    </div>
-                    {supplierDetails.cost && (
-                      <div className="mb-6 p-4 bg-emerald-50 rounded-xl border border-emerald-100 flex justify-between items-center">
-                        <p className="font-bold text-emerald-800">Your Profit Margin:</p>
-                        <p className="brand text-2xl font-bold text-emerald-600">MYR {(managingBooking.customer.totalPrice + managingBooking.customer.pickupFee + managingBooking.customer.returnFee) - parseFloat(supplierDetails.cost || 0)}</p>
-                      </div>
-                    )}
-                  </>
-                ) : (
-                  <div className="mb-6 p-4 bg-emerald-50 rounded-xl border border-emerald-100 flex justify-between items-center">
-                    <div>
-                      <p className="font-bold text-emerald-800">Using Own Inventory</p>
-                      <p className="text-sm text-emerald-600 font-medium">100% Profit Margin</p>
-                    </div>
-                    <p className="brand text-2xl font-bold text-emerald-600">MYR {managingBooking.customer.totalPrice + managingBooking.customer.pickupFee + managingBooking.customer.returnFee}</p>
-                  </div>
-                )}
-
-                <div className="flex gap-4">
-                  <button type="submit" className="flex-1 btn-primary text-white py-3.5 rounded-xl font-bold flex justify-center items-center shadow-md">
-                    <CheckCircle size={20} className="mr-2"/> Confirm Vehicle
-                  </button>
-                  <button type="button" onClick={() => handleRejectBooking(managingBooking)} className="px-6 bg-red-100 text-red-700 py-3.5 rounded-xl font-bold hover:bg-red-200 transition-colors flex justify-center items-center">
-                    <XCircle size={20} className="mr-1"/> Reject & Refund
-                  </button>
-                </div>
-              </form>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {verifyingKyc && (
-        <div className="fixed inset-0 bg-slate-900/80 backdrop-blur-sm z-[100] flex items-center justify-center p-4">
-          <div className="bg-white rounded-3xl w-full max-w-4xl shadow-2xl overflow-hidden max-h-[90vh] overflow-y-auto">
-            <div className="bg-purple-900 p-6 flex justify-between items-center text-white sticky top-0 z-10">
-              <h3 className="brand text-xl font-bold flex items-center"><FileCheck className="mr-2"/> Identity Verification Review</h3>
-              <button onClick={() => setVerifyingKyc(null)} className="text-purple-300 hover:text-white"><X size={24}/></button>
-            </div>
-            <div className="p-8">
-              <div className="flex justify-between items-center mb-6">
-                 <div>
-                   <div className="flex items-center gap-2">
-                     <p className="font-bold text-lg text-slate-900">{verifyingKyc.customer.name}</p>
-                     {verifyingKyc.customer.customerType === 'international' ? (
-                       <span className="bg-blue-100 text-blue-800 text-xs px-2 py-0.5 rounded-md font-bold flex items-center border border-blue-200"><Globe size={12} className="mr-1"/> Tourist</span>
-                     ) : (
-                       <span className="bg-slate-100 text-slate-600 text-xs px-2 py-0.5 rounded-md font-bold border border-slate-200">Local</span>
-                     )}
-                   </div>
-                   <p className="text-slate-500 text-sm mt-1">ID: {verifyingKyc.id}</p>
-                 </div>
-                 <div className="bg-yellow-50 text-yellow-700 px-4 py-2 rounded-lg font-bold border border-yellow-200 text-sm">Awaiting Review</div>
-              </div>
-
-              <div className="grid md:grid-cols-3 gap-6 mb-8">
-                {[
-                  { key: 'ic', label: verifyingKyc.customer.customerType === 'international' ? 'Passport / ID' : 'MyKad (Front)' },
-                  { key: 'license', label: verifyingKyc.customer.customerType === 'international' ? 'Driving License / IDP' : 'Driving License' },
-                  { key: 'bill', label: verifyingKyc.customer.customerType === 'international' ? 'Flight / Hotel Booking' : 'Utility Bill' }
-                ].map(doc => (
-                  <div key={doc.key} className="border border-slate-200 p-2 rounded-xl bg-slate-50">
-                    <p className="text-xs font-bold text-slate-500 uppercase text-center mb-2">{doc.label}</p>
-                    <div className="aspect-[4/3] bg-slate-200 rounded-lg overflow-hidden relative group">
-                      <img src={verifyingKyc.documents?.[doc.key]} alt={doc.key} className="w-full h-full object-cover" />
-                    </div>
-                  </div>
-                ))}
-              </div>
-
-              <div className="flex gap-4">
-                <button onClick={() => handleVerifyKyc(verifyingKyc.id, 'verified')} className="flex-1 bg-emerald-600 text-white py-4 rounded-xl font-bold flex justify-center items-center shadow-md hover:bg-emerald-700 transition-colors">
-                  <CheckCircle size={20} className="mr-2"/> Approve Documents
-                </button>
-                <button onClick={() => handleVerifyKyc(verifyingKyc.id, 'rejected')} className="px-8 bg-red-100 text-red-700 py-4 rounded-xl font-bold hover:bg-red-200 transition-colors flex justify-center items-center">
-                  <XCircle size={20} className="mr-2"/> Reject
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {viewingVcr && (
-        <div className="fixed inset-0 bg-slate-900/80 backdrop-blur-sm z-[100] flex items-center justify-center p-4">
-          <div className="bg-white rounded-3xl w-full max-w-3xl shadow-2xl overflow-hidden max-h-[90vh] overflow-y-auto">
-            <div className="bg-slate-900 p-6 flex justify-between items-center text-white sticky top-0 z-10">
-              <h3 className="brand text-xl font-bold flex items-center"><Camera className="mr-2"/> Initial VCR & E-Agreement</h3>
-              <button onClick={() => setViewingVcr(null)} className="text-slate-400 hover:text-white"><X size={24}/></button>
-            </div>
-            <div className="p-8">
-              <div className="flex justify-between items-center mb-6">
-                 <div>
-                   <p className="font-bold text-lg text-slate-900">{viewingVcr.car.name}</p>
-                   <p className="text-slate-500 text-sm">Customer: {viewingVcr.customer.name}</p>
-                 </div>
-              </div>
-
-              <div className="grid grid-cols-2 gap-4 mb-8">
-                {[
-                  { key: 'front', label: 'Front' },
-                  { key: 'back', label: 'Rear' },
-                  { key: 'left', label: 'Left' },
-                  { key: 'right', label: 'Right' }
-                ].map(doc => (
-                  <div key={doc.key} className="border border-slate-200 p-2 rounded-xl bg-slate-50">
-                    <p className="text-xs font-bold text-slate-500 uppercase text-center mb-2">{doc.label}</p>
-                    <div className="aspect-[4/3] bg-slate-200 rounded-lg overflow-hidden">
-                      <img src={viewingVcr.vcr?.[doc.key]} alt={doc.key} className="w-full h-full object-cover" />
-                    </div>
-                  </div>
-                ))}
-              </div>
-
-              <div className="border border-slate-200 p-4 rounded-xl bg-slate-50 flex items-center justify-between mb-8">
-                <div>
-                   <p className="text-xs font-bold text-slate-500 uppercase mb-2">Customer Digital Signature</p>
-                   <div className="bg-white border border-slate-200 rounded-lg p-2 inline-block">
-                      {viewingVcr.vcr?.signature ? (
-                         <img src={viewingVcr.vcr.signature} alt="Signature" className="h-20 object-contain" />
-                      ) : <span className="text-sm text-slate-400">No Signature</span>}
-                   </div>
-                </div>
-                <CheckCircle size={40} className="text-emerald-500 opacity-20" />
-              </div>
-
-              <button onClick={() => setViewingVcr(null)} className="w-full bg-slate-200 text-slate-800 py-4 rounded-xl font-bold hover:bg-slate-300 transition-colors">
-                Close Window
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {viewingReturnVcr && (
-        <div className="fixed inset-0 bg-slate-900/80 backdrop-blur-sm z-[100] flex items-center justify-center p-4">
-          <div className="bg-white rounded-3xl w-full max-w-3xl shadow-2xl overflow-hidden max-h-[90vh] overflow-y-auto">
-            <div className="bg-orange-900 p-6 flex justify-between items-center text-white sticky top-0 z-10">
-              <h3 className="brand text-xl font-bold flex items-center"><Undo2 className="mr-2"/> Return VCR Inspection</h3>
-              <button onClick={() => setViewingReturnVcr(null)} className="text-orange-300 hover:text-white"><X size={24}/></button>
-            </div>
-            <div className="p-8">
-              <div className="flex justify-between items-center mb-6">
-                 <div>
-                   <p className="font-bold text-lg text-slate-900">{viewingReturnVcr.car.name}</p>
-                   <p className="text-slate-500 text-sm">Customer: {viewingReturnVcr.customer.name}</p>
-                 </div>
-                 <div className="text-right">
-                   <p className="text-xs font-bold text-slate-500">Deposit to Refund</p>
-                   <p className="brand text-2xl font-bold text-emerald-600">MYR {viewingReturnVcr.customer.deposit}</p>
-                 </div>
-              </div>
-
-              <div className="bg-orange-50 border border-orange-200 p-4 rounded-xl mb-6">
-                <p className="text-sm text-orange-800 font-medium"><AlertTriangle className="inline w-4 h-4 mr-1"/> Please review the 4 return photos below. Verify there are no new damages before refunding the deposit.</p>
-              </div>
-
-              <div className="grid grid-cols-2 gap-4 mb-8">
-                {[
-                  { key: 'front', label: 'Front' },
-                  { key: 'back', label: 'Rear' },
-                  { key: 'left', label: 'Left' },
-                  { key: 'right', label: 'Right' }
-                ].map(doc => (
-                  <div key={doc.key} className="border border-slate-200 p-2 rounded-xl bg-slate-50">
-                    <p className="text-xs font-bold text-slate-500 uppercase text-center mb-2">{doc.label}</p>
-                    <div className="aspect-[4/3] bg-slate-200 rounded-lg overflow-hidden">
-                      <img src={viewingReturnVcr.returnVcr?.[doc.key]} alt={doc.key} className="w-full h-full object-cover" />
-                    </div>
-                  </div>
-                ))}
-              </div>
-
-              <div className="flex gap-4">
-                <button onClick={() => handleApproveReturnAndRefund(viewingReturnVcr)} className="flex-1 bg-emerald-600 text-white py-4 rounded-xl font-bold hover:bg-emerald-700 transition-colors flex justify-center items-center shadow-md">
-                  <CheckCircle size={20} className="mr-2"/> Approve & Refund
-                </button>
-                <button onClick={() => setViewingReturnVcr(null)} className="px-8 bg-slate-100 text-slate-700 py-4 rounded-xl font-bold hover:bg-slate-200 transition-colors flex justify-center items-center">
-                  Close
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
 
       {/* POPUP LOGIN ADMIN KETIKA BUTANG ADMIN DITEKAN */}
       {showAdminLogin && (
