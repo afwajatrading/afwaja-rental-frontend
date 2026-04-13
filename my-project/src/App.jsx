@@ -2252,7 +2252,6 @@ export default function App() {
       <main className="h-full">
         {currentView === 'home' && HomeView()}
         {currentView === 'booking' && BookingView()}
-        {currentView === 'request-success' && RequestSuccessView()}
         {currentView === 'thank-you' && ThankYouView()} 
         {currentView === 'track' && CustomerTrackView()}
         {currentView === 'payment' && PaymentView()}
