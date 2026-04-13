@@ -47,6 +47,7 @@ const appId =
     ? globalThis.__app_id
     : import.meta.env.VITE_APP_ID || 'afwaja-car-rental-app';
 const MOBILE_IMAGE_ACCEPT = 'image/*,.heic,.HEIC,.heif,.HEIF';
+const EMPTY_VCR_DOCS = { front: null, back: null, left: null, right: null, odometer: null };
 
 // --- DATA KENDARAAN (MOCK DATA) ---
 const INITIAL_CARS = [
@@ -180,15 +181,17 @@ const processImageWithWatermark = async (file) => {
     img.onload = () => {
       try {
         const canvas = document.createElement('canvas');
-        // FIX: Kurangkan MAX_WIDTH ke 400px supaya saiz Base64 sangat kecil
-        // Ini untuk elak limit 1MB NoSQL Firestore bila kita kumpul 14 gambar dalam 1 dokumen.
-        const MAX_WIDTH = 400;
+        // Use a smaller maximum dimension for mobile stability during VCR capture and upload.
+        const MAX_DIMENSION = 320;
         let width = img.width;
         let height = img.height;
 
-        if (width > MAX_WIDTH) {
-          height = Math.round((height * MAX_WIDTH) / width);
-          width = MAX_WIDTH;
+        if (width > height && width > MAX_DIMENSION) {
+          height = Math.round((height * MAX_DIMENSION) / width);
+          width = MAX_DIMENSION;
+        } else if (height >= width && height > MAX_DIMENSION) {
+          width = Math.round((width * MAX_DIMENSION) / height);
+          height = MAX_DIMENSION;
         }
 
         canvas.width = width;
@@ -222,8 +225,8 @@ const processImageWithWatermark = async (file) => {
 
         ctx.restore();
 
-        // FIX: Turunkan kualiti JPEG dari 0.6 ke 0.4 untuk kompresi maksimum
-        resolve(canvas.toDataURL('image/jpeg', 0.4));
+        // Use more aggressive JPEG compression to reduce memory pressure on mobile devices.
+        resolve(canvas.toDataURL('image/jpeg', 0.28));
       } catch (error) {
         console.warn('Watermark processing fallback applied for image upload.', error);
         resolve(sourceDataUrl);
@@ -510,9 +513,9 @@ export default function App() {
   const [paymentUrl, setPaymentUrl] = useState('');
   const [kycUploading, setKycUploading] = useState(false);
   const [uploadedDocs, setUploadedDocs] = useState({ ic: null, license: null, bill: null });
-  const [vcrDocs, setVcrDocs] = useState({ front: null, back: null, left: null, right: null, odometer: null });
+  const [vcrDocs, setVcrDocs] = useState(EMPTY_VCR_DOCS);
   const [vcrUploading, setVcrUploading] = useState(false);
-  const [returnVcrDocs, setReturnVcrDocs] = useState({ front: null, back: null, left: null, right: null, odometer: null }); 
+  const [returnVcrDocs, setReturnVcrDocs] = useState(EMPTY_VCR_DOCS); 
   const [returnVcrUploading, setReturnVcrUploading] = useState(false);
   const sigCanvas = useRef(null);
   const [isDrawing, setIsDrawing] = useState(false);
@@ -1134,15 +1137,26 @@ export default function App() {
     setReturnVcrUploading(true);
     try {
       const bookingRef = doc(db, 'artifacts', appId, 'public', 'data', 'bookings', trackedBooking.docId);
+      let currentReturnDocs = { ...returnVcrDocs };
+      const uploadedReturnVcr = {
+        front: await uploadFileToStorage(currentReturnDocs.front, `vcr/${trackedBooking.id}/return/front.jpg`),
+        back: await uploadFileToStorage(currentReturnDocs.back, `vcr/${trackedBooking.id}/return/back.jpg`),
+        left: await uploadFileToStorage(currentReturnDocs.left, `vcr/${trackedBooking.id}/return/left.jpg`),
+        right: await uploadFileToStorage(currentReturnDocs.right, `vcr/${trackedBooking.id}/return/right.jpg`),
+        odometer: await uploadFileToStorage(currentReturnDocs.odometer, `vcr/${trackedBooking.id}/return/odometer.jpg`),
+      };
+      currentReturnDocs = null;
+
       await updateDoc(bookingRef, {
-        'returnVcr.front': returnVcrDocs.front,
-        'returnVcr.back': returnVcrDocs.back,
-        'returnVcr.left': returnVcrDocs.left,
-        'returnVcr.right': returnVcrDocs.right,
-        'returnVcr.odometer': returnVcrDocs.odometer,
+        'returnVcr.front': uploadedReturnVcr.front,
+        'returnVcr.back': uploadedReturnVcr.back,
+        'returnVcr.left': uploadedReturnVcr.left,
+        'returnVcr.right': uploadedReturnVcr.right,
+        'returnVcr.odometer': uploadedReturnVcr.odometer,
         'returnVcr.status': 'submitted',
         status: 'Return_Pending' 
       });
+      setReturnVcrDocs(EMPTY_VCR_DOCS);
       showNotification('Return VCR Submitted Successfully!', 'success');
     } catch (err) {
       console.error("Return VCR Upload Error:", err);
@@ -1159,27 +1173,47 @@ export default function App() {
     setVcrUploading(true);
     try {
       const canvas = sigCanvas.current;
-      const signatureBase64 = canvas ? canvas.toDataURL('image/png') : null;
+      let signatureBase64 = canvas ? canvas.toDataURL('image/png') : null;
 
       const bookingRef = doc(db, 'artifacts', appId, 'public', 'data', 'bookings', trackedBooking.docId);
+      let currentVcrDocs = { ...vcrDocs };
+      const uploadedInitialVcr = {
+        front: await uploadFileToStorage(currentVcrDocs.front, `vcr/${trackedBooking.id}/initial/front.jpg`),
+        back: await uploadFileToStorage(currentVcrDocs.back, `vcr/${trackedBooking.id}/initial/back.jpg`),
+        left: await uploadFileToStorage(currentVcrDocs.left, `vcr/${trackedBooking.id}/initial/left.jpg`),
+        right: await uploadFileToStorage(currentVcrDocs.right, `vcr/${trackedBooking.id}/initial/right.jpg`),
+        odometer: await uploadFileToStorage(currentVcrDocs.odometer, `vcr/${trackedBooking.id}/initial/odometer.jpg`),
+      };
+      const signatureUrl = await uploadFileToStorage(signatureBase64, `vcr/${trackedBooking.id}/initial/signature.png`);
+      currentVcrDocs = null;
+
       await updateDoc(bookingRef, {
-        'vcr.front': vcrDocs.front,
-        'vcr.back': vcrDocs.back,
-        'vcr.left': vcrDocs.left,
-        'vcr.right': vcrDocs.right,
-        'vcr.odometer': vcrDocs.odometer,
-        'vcr.signature': signatureBase64,
+        'vcr.front': uploadedInitialVcr.front,
+        'vcr.back': uploadedInitialVcr.back,
+        'vcr.left': uploadedInitialVcr.left,
+        'vcr.right': uploadedInitialVcr.right,
+        'vcr.odometer': uploadedInitialVcr.odometer,
+        'vcr.signature': signatureUrl,
         'vcr.status': 'completed',
         status: 'Active' 
       });
+      setVcrDocs(EMPTY_VCR_DOCS);
+      clearSignature();
 
       let agreementPdfUrl = null;
 
       try {
         const pdfDataUri = await createInitialAgreementPdf({
-          booking: trackedBooking,
-          vcrImages: vcrDocs,
-          signatureBase64,
+          booking: {
+            ...trackedBooking,
+            vcr: {
+              ...(trackedBooking.vcr || {}),
+              ...uploadedInitialVcr,
+              signature: signatureUrl,
+            },
+          },
+          vcrImages: uploadedInitialVcr,
+          signatureBase64: signatureUrl,
         });
 
         const agreementPath = `agreements/${trackedBooking.id}/initial-agreement.pdf`;
@@ -2011,8 +2045,8 @@ export default function App() {
               onChange={(e) => {
                  setSearchTrackId(e.target.value.toUpperCase());
                  setUploadedDocs({ ic: null, license: null, bill: null });
-                 setVcrDocs({ front: null, back: null, left: null, right: null, odometer: null });
-                 setReturnVcrDocs({ front: null, back: null, left: null, right: null, odometer: null });
+                 setVcrDocs(EMPTY_VCR_DOCS);
+                 setReturnVcrDocs(EMPTY_VCR_DOCS);
               }}
             />
           </div>
