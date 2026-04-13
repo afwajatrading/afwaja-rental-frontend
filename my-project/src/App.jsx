@@ -1186,8 +1186,8 @@ export default function App() {
             <div>
               <h4 className="text-white font-bold mb-4 uppercase tracking-wider text-sm">Support</h4>
               <ul className="space-y-3 text-sm">
-                <li><button onClick={() => { setReadingDoc('terms'); window.scrollTo(0,0); }} className="hover:text-cyan-400 transition-colors">Terms & Conditions</button></li>
-                <li><button onClick={() => { setReadingDoc('privacy'); window.scrollTo(0,0); }} className="hover:text-cyan-400 transition-colors">Privacy Policy</button></li>
+                <li><button onClick={() => { setCurrentView('terms'); window.scrollTo(0,0); }} className="hover:text-cyan-400 transition-colors">Terms & Conditions</button></li>
+                <li><button onClick={() => { setCurrentView('privacy'); window.scrollTo(0,0); }} className="hover:text-cyan-400 transition-colors">Privacy Policy</button></li>
                 <li><button onClick={() => { setCurrentView('faq'); window.scrollTo(0,0); }} className="hover:text-cyan-400 transition-colors">FAQ</button></li>
                 <li><button onClick={() => { setCurrentView('contact'); window.scrollTo(0,0); }} className="hover:text-cyan-400 transition-colors">Contact Us</button></li>
               </ul>
