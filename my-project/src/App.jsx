@@ -182,7 +182,7 @@ const processImageWithWatermark = async (file) => {
       try {
         const canvas = document.createElement('canvas');
         // Use a smaller maximum dimension for mobile stability during VCR capture and upload.
-        const MAX_DIMENSION = 320;
+        const MAX_DIMENSION = 240;
         let width = img.width;
         let height = img.height;
 
@@ -226,7 +226,7 @@ const processImageWithWatermark = async (file) => {
         ctx.restore();
 
         // Use more aggressive JPEG compression to reduce memory pressure on mobile devices.
-        resolve(canvas.toDataURL('image/jpeg', 0.28));
+        resolve(canvas.toDataURL('image/jpeg', 0.2));
       } catch (error) {
         console.warn('Watermark processing fallback applied for image upload.', error);
         resolve(sourceDataUrl);
@@ -1052,11 +1052,17 @@ export default function App() {
 
   const handleVcrFileChange = async (e, type) => {
     const file = e.target.files[0];
-    if (!file) return;
-    showNotification(`Processing view for ${type}...`, 'info');
+    if (!file || !trackedBooking) return;
+    showNotification(`Processing and uploading ${type} view...`, 'info');
     const watermarkedBase64 = await processImageWithWatermark(file);
     if (watermarkedBase64) {
-      setVcrDocs(prev => ({ ...prev, [type]: watermarkedBase64 }));
+      const uploadedUrl = await uploadFileToStorage(watermarkedBase64, `vcr/${trackedBooking.id}/draft-initial/${type}.jpg`);
+      if (uploadedUrl) {
+        setVcrDocs(prev => ({ ...prev, [type]: uploadedUrl }));
+        showNotification(`${type} view uploaded successfully.`, 'success');
+      } else {
+        showNotification('Failed to upload file.', 'error');
+      }
     } else {
       showNotification('Failed to process file.', 'error');
     }
@@ -1118,11 +1124,17 @@ export default function App() {
 
   const handleReturnVcrFileChange = async (e, type) => {
     const file = e.target.files[0];
-    if (!file) return;
-    showNotification(`Processing return view for ${type}...`, 'info');
+    if (!file || !trackedBooking) return;
+    showNotification(`Processing and uploading return ${type} view...`, 'info');
     const watermarkedBase64 = await processImageWithWatermark(file);
     if (watermarkedBase64) {
-      setReturnVcrDocs(prev => ({ ...prev, [type]: watermarkedBase64 }));
+      const uploadedUrl = await uploadFileToStorage(watermarkedBase64, `vcr/${trackedBooking.id}/draft-return/${type}.jpg`);
+      if (uploadedUrl) {
+        setReturnVcrDocs(prev => ({ ...prev, [type]: uploadedUrl }));
+        showNotification(`Return ${type} view uploaded successfully.`, 'success');
+      } else {
+        showNotification('Failed to upload file.', 'error');
+      }
     } else {
       showNotification('Failed to process file.', 'error');
     }
@@ -1137,22 +1149,12 @@ export default function App() {
     setReturnVcrUploading(true);
     try {
       const bookingRef = doc(db, 'artifacts', appId, 'public', 'data', 'bookings', trackedBooking.docId);
-      let currentReturnDocs = { ...returnVcrDocs };
-      const uploadedReturnVcr = {
-        front: await uploadFileToStorage(currentReturnDocs.front, `vcr/${trackedBooking.id}/return/front.jpg`),
-        back: await uploadFileToStorage(currentReturnDocs.back, `vcr/${trackedBooking.id}/return/back.jpg`),
-        left: await uploadFileToStorage(currentReturnDocs.left, `vcr/${trackedBooking.id}/return/left.jpg`),
-        right: await uploadFileToStorage(currentReturnDocs.right, `vcr/${trackedBooking.id}/return/right.jpg`),
-        odometer: await uploadFileToStorage(currentReturnDocs.odometer, `vcr/${trackedBooking.id}/return/odometer.jpg`),
-      };
-      currentReturnDocs = null;
-
       await updateDoc(bookingRef, {
-        'returnVcr.front': uploadedReturnVcr.front,
-        'returnVcr.back': uploadedReturnVcr.back,
-        'returnVcr.left': uploadedReturnVcr.left,
-        'returnVcr.right': uploadedReturnVcr.right,
-        'returnVcr.odometer': uploadedReturnVcr.odometer,
+        'returnVcr.front': returnVcrDocs.front,
+        'returnVcr.back': returnVcrDocs.back,
+        'returnVcr.left': returnVcrDocs.left,
+        'returnVcr.right': returnVcrDocs.right,
+        'returnVcr.odometer': returnVcrDocs.odometer,
         'returnVcr.status': 'submitted',
         status: 'Return_Pending' 
       });
@@ -1176,23 +1178,14 @@ export default function App() {
       let signatureBase64 = canvas ? canvas.toDataURL('image/png') : null;
 
       const bookingRef = doc(db, 'artifacts', appId, 'public', 'data', 'bookings', trackedBooking.docId);
-      let currentVcrDocs = { ...vcrDocs };
-      const uploadedInitialVcr = {
-        front: await uploadFileToStorage(currentVcrDocs.front, `vcr/${trackedBooking.id}/initial/front.jpg`),
-        back: await uploadFileToStorage(currentVcrDocs.back, `vcr/${trackedBooking.id}/initial/back.jpg`),
-        left: await uploadFileToStorage(currentVcrDocs.left, `vcr/${trackedBooking.id}/initial/left.jpg`),
-        right: await uploadFileToStorage(currentVcrDocs.right, `vcr/${trackedBooking.id}/initial/right.jpg`),
-        odometer: await uploadFileToStorage(currentVcrDocs.odometer, `vcr/${trackedBooking.id}/initial/odometer.jpg`),
-      };
       const signatureUrl = await uploadFileToStorage(signatureBase64, `vcr/${trackedBooking.id}/initial/signature.png`);
-      currentVcrDocs = null;
 
       await updateDoc(bookingRef, {
-        'vcr.front': uploadedInitialVcr.front,
-        'vcr.back': uploadedInitialVcr.back,
-        'vcr.left': uploadedInitialVcr.left,
-        'vcr.right': uploadedInitialVcr.right,
-        'vcr.odometer': uploadedInitialVcr.odometer,
+        'vcr.front': vcrDocs.front,
+        'vcr.back': vcrDocs.back,
+        'vcr.left': vcrDocs.left,
+        'vcr.right': vcrDocs.right,
+        'vcr.odometer': vcrDocs.odometer,
         'vcr.signature': signatureUrl,
         'vcr.status': 'completed',
         status: 'Active' 
@@ -1208,11 +1201,11 @@ export default function App() {
             ...trackedBooking,
             vcr: {
               ...(trackedBooking.vcr || {}),
-              ...uploadedInitialVcr,
+              ...vcrDocs,
               signature: signatureUrl,
             },
           },
-          vcrImages: uploadedInitialVcr,
+          vcrImages: vcrDocs,
           signatureBase64: signatureUrl,
         });
 
