@@ -2137,7 +2137,8 @@ export default function App() {
                 <div className="mt-8 border-t border-slate-200 pt-8 animate-fadeIn">
                   <h3 className="font-bold text-slate-900 text-lg mb-2 flex items-center"><Camera className="mr-2 text-cyan-600"/> Vehicle Condition Report (VCR)</h3>
                   <div className="bg-blue-50 p-6 rounded-2xl border border-blue-200">
-                    <p className="text-sm text-blue-800 mb-6 font-medium">Please capture images of the vehicle from 4 angles and the dashboard (odometer & fuel level) before starting your trip. This acts as physical evidence for the E-Agreement.</p>
+                    <p className="text-sm text-blue-800 mb-2 font-medium">Please upload images of the vehicle from 4 angles and the dashboard (odometer & fuel level) before starting your trip. This acts as physical evidence for the E-Agreement.</p>
+                    <p className="text-xs text-blue-700 mb-6">Tip: If your phone camera is unstable, take the photo first and upload it from your gallery.</p>
                     
                     <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 mb-6">
                       {[{key: 'front', label: 'Front'}, {key: 'back', label: 'Rear'}, {key: 'left', label: 'Left'}, {key: 'right', label: 'Right'}, {key: 'odometer', label: 'Dashboard/Fuel'}].map((docType) => (
@@ -2156,7 +2157,6 @@ export default function App() {
                           <input
                             type="file"
                             accept={MOBILE_IMAGE_ACCEPT}
-                            capture="environment"
                             multiple={false}
                             onClick={(e) => { e.currentTarget.value = null; }}
                             onChange={(e) => handleVcrFileChange(e, docType.key)}
@@ -2198,7 +2198,8 @@ export default function App() {
                 <div className="mt-8 border-t border-slate-200 pt-8 animate-fadeIn">
                   <h3 className="font-bold text-slate-900 text-lg mb-2 flex items-center"><Undo2 className="mr-2 text-orange-600"/> Vehicle Return (Return VCR)</h3>
                   <div className="bg-orange-50 p-6 rounded-2xl border border-orange-200">
-                    <p className="text-sm text-orange-800 mb-6 font-medium">When you are ready to return the vehicle, park it at the designated drop-off location and capture 5 photos of the vehicle condition (including dashboard). This is required for your Security Deposit refund.</p>
+                    <p className="text-sm text-orange-800 mb-2 font-medium">When you are ready to return the vehicle, park it at the designated drop-off location and upload 5 photos of the vehicle condition (including dashboard). This is required for your Security Deposit refund.</p>
+                    <p className="text-xs text-orange-700 mb-6">Tip: If your phone camera is unstable, take the photo first and upload it from your gallery.</p>
                     
                     <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 mb-6">
                       {[{key: 'front', label: 'Front'}, {key: 'back', label: 'Rear'}, {key: 'left', label: 'Left'}, {key: 'right', label: 'Right'}, {key: 'odometer', label: 'Dashboard/Fuel'}].map((docType) => (
@@ -2217,7 +2218,6 @@ export default function App() {
                           <input
                             type="file"
                             accept={MOBILE_IMAGE_ACCEPT}
-                            capture="environment"
                             multiple={false}
                             onClick={(e) => { e.currentTarget.value = null; }}
                             onChange={(e) => handleReturnVcrFileChange(e, docType.key)}
