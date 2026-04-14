@@ -2143,9 +2143,9 @@ export default function App() {
                       {[{key: 'front', label: 'Front'}, {key: 'back', label: 'Rear'}, {key: 'left', label: 'Left'}, {key: 'right', label: 'Right'}, {key: 'odometer', label: 'Dashboard/Fuel'}].map((docType) => (
                         <div key={docType.key} className="border-2 border-dashed border-blue-300 rounded-xl p-3 text-center hover:bg-white transition-colors relative overflow-hidden group h-24 flex flex-col items-center justify-center bg-white/50">
                           {vcrDocs[docType.key] ? (
-                            <div className="absolute inset-0">
-                              <img src={vcrDocs[docType.key]} className="w-full h-full object-cover opacity-80" alt={docType.key} />
-                              <div className="absolute inset-0 bg-emerald-500/20 flex items-center justify-center backdrop-blur-sm"><CheckCircle className="text-white w-6 h-6" /></div>
+                            <div className="absolute inset-0 bg-emerald-50 flex flex-col items-center justify-center gap-1">
+                              <CheckCircle className="text-emerald-600 w-6 h-6" />
+                              <p className="text-[10px] font-bold text-emerald-700 uppercase">{docType.label}</p>
                             </div>
                           ) : (
                             <>
@@ -2204,9 +2204,9 @@ export default function App() {
                       {[{key: 'front', label: 'Front'}, {key: 'back', label: 'Rear'}, {key: 'left', label: 'Left'}, {key: 'right', label: 'Right'}, {key: 'odometer', label: 'Dashboard/Fuel'}].map((docType) => (
                         <div key={docType.key} className="border-2 border-dashed border-orange-300 rounded-xl p-3 text-center hover:bg-white transition-colors relative overflow-hidden group h-24 flex flex-col items-center justify-center bg-white/50">
                           {returnVcrDocs[docType.key] ? (
-                            <div className="absolute inset-0">
-                              <img src={returnVcrDocs[docType.key]} className="w-full h-full object-cover opacity-80" alt={docType.key} />
-                              <div className="absolute inset-0 bg-emerald-500/20 flex items-center justify-center backdrop-blur-sm"><CheckCircle className="text-white w-6 h-6" /></div>
+                            <div className="absolute inset-0 bg-emerald-50 flex flex-col items-center justify-center gap-1">
+                              <CheckCircle className="text-emerald-600 w-6 h-6" />
+                              <p className="text-[10px] font-bold text-emerald-700 uppercase">{docType.label}</p>
                             </div>
                           ) : (
                             <>
