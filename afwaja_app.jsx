@@ -45,7 +45,7 @@ const appId =
   typeof globalThis.__app_id !== 'undefined'
     ? globalThis.__app_id
     : import.meta.env.VITE_APP_ID || 'afwaja-car-rental-app';
-const MOBILE_IMAGE_ACCEPT = 'image/*,.heic,.HEIC,.heif,.HEIF';
+const MOBILE_IMAGE_ACCEPT = 'image/jpeg,image/png';
 const EMPTY_VCR_DOCS = { front: null, back: null, left: null, right: null, odometer: null };
 
 // --- DATA KENDARAAN (MOCK DATA) ---
@@ -237,59 +237,6 @@ const processImageWithWatermark = async (file) => {
     };
     img.src = sourceDataUrl;
   });
-};
-
-const optimizeVcrImageForUpload = async (file) => {
-  if (!file) return null;
-
-  const objectUrl = URL.createObjectURL(file);
-
-  try {
-    return await new Promise((resolve) => {
-      const img = new Image();
-
-      img.onload = () => {
-        try {
-          const canvas = document.createElement('canvas');
-          const MAX_DIMENSION = 180;
-          let width = img.width;
-          let height = img.height;
-
-          if (width > height && width > MAX_DIMENSION) {
-            height = Math.round((height * MAX_DIMENSION) / width);
-            width = MAX_DIMENSION;
-          } else if (height >= width && height > MAX_DIMENSION) {
-            width = Math.round((width * MAX_DIMENSION) / height);
-            height = MAX_DIMENSION;
-          }
-
-          canvas.width = width;
-          canvas.height = height;
-          const ctx = canvas.getContext('2d', { alpha: false });
-
-          if (!ctx) {
-            resolve(file);
-            return;
-          }
-
-          ctx.drawImage(img, 0, 0, width, height);
-          canvas.toBlob(
-            (blob) => resolve(blob || file),
-            'image/jpeg',
-            0.18
-          );
-        } catch (error) {
-          console.warn('VCR image optimization fallback applied.', error);
-          resolve(file);
-        }
-      };
-
-      img.onerror = () => resolve(file);
-      img.src = objectUrl;
-    });
-  } finally {
-    URL.revokeObjectURL(objectUrl);
-  }
 };
 
 const formatCurrency = (amount) => `MYR ${Number(amount || 0).toFixed(2)}`;
@@ -1115,17 +1062,12 @@ export default function App() {
     const file = e.target.files[0];
     if (!file || !trackedBooking) return;
     showNotification(`Processing and uploading ${type} view...`, 'info');
-    const optimizedFile = await optimizeVcrImageForUpload(file);
-    if (optimizedFile) {
-      const uploadedUrl = await uploadBinaryToStorage(optimizedFile, `vcr/${trackedBooking.id}/draft-initial/${type}.jpg`, 'image/jpeg');
-      if (uploadedUrl) {
-        setVcrDocs(prev => ({ ...prev, [type]: uploadedUrl }));
-        showNotification(`${type} view uploaded successfully.`, 'success');
-      } else {
-        showNotification('Failed to upload file.', 'error');
-      }
+    const uploadedUrl = await uploadBinaryToStorage(file, `vcr/${trackedBooking.id}/draft-initial/${type}.jpg`, file.type || 'image/jpeg');
+    if (uploadedUrl) {
+      setVcrDocs(prev => ({ ...prev, [type]: uploadedUrl }));
+      showNotification(`${type} view uploaded successfully.`, 'success');
     } else {
-      showNotification('Failed to process file.', 'error');
+      showNotification('Failed to upload file.', 'error');
     }
     e.target.value = null; 
   };
@@ -1187,17 +1129,12 @@ export default function App() {
     const file = e.target.files[0];
     if (!file || !trackedBooking) return;
     showNotification(`Processing and uploading return ${type} view...`, 'info');
-    const optimizedFile = await optimizeVcrImageForUpload(file);
-    if (optimizedFile) {
-      const uploadedUrl = await uploadBinaryToStorage(optimizedFile, `vcr/${trackedBooking.id}/draft-return/${type}.jpg`, 'image/jpeg');
-      if (uploadedUrl) {
-        setReturnVcrDocs(prev => ({ ...prev, [type]: uploadedUrl }));
-        showNotification(`Return ${type} view uploaded successfully.`, 'success');
-      } else {
-        showNotification('Failed to upload file.', 'error');
-      }
+    const uploadedUrl = await uploadBinaryToStorage(file, `vcr/${trackedBooking.id}/draft-return/${type}.jpg`, file.type || 'image/jpeg');
+    if (uploadedUrl) {
+      setReturnVcrDocs(prev => ({ ...prev, [type]: uploadedUrl }));
+      showNotification(`Return ${type} view uploaded successfully.`, 'success');
     } else {
-      showNotification('Failed to process file.', 'error');
+      showNotification('Failed to upload file.', 'error');
     }
     e.target.value = null; 
   };
