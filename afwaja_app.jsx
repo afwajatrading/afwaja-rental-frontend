@@ -1,9 +1,8 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { initializeApp } from 'firebase/app';
 import { getAuth, signInAnonymously, onAuthStateChanged, signInWithCustomToken } from 'firebase/auth';
-import { getFirestore, collection, addDoc, updateDoc, doc, onSnapshot, getDoc, getDocs, query, where, setDoc } from 'firebase/firestore';
+import { getFirestore, collection, addDoc, updateDoc, doc, onSnapshot, getDoc, getDocs, query, where } from 'firebase/firestore';
 import { getStorage, ref, uploadString, getDownloadURL } from 'firebase/storage';
-import { jsPDF } from 'jspdf';
 import { 
   Car, Calendar, CreditCard, FileText, LayoutDashboard, 
   CheckCircle, Bell, User, LogOut, ChevronRight, Printer, 
@@ -1188,62 +1187,12 @@ export default function App() {
         'vcr.odometer': vcrDocs.odometer,
         'vcr.signature': signatureUrl,
         'vcr.status': 'completed',
+        'agreement.status': 'pending_generation',
         status: 'Active' 
       });
       setVcrDocs(EMPTY_VCR_DOCS);
       clearSignature();
-
-      let agreementPdfUrl = null;
-
-      try {
-        const pdfDataUri = await createInitialAgreementPdf({
-          booking: {
-            ...trackedBooking,
-            vcr: {
-              ...(trackedBooking.vcr || {}),
-              ...vcrDocs,
-              signature: signatureUrl,
-            },
-          },
-          vcrImages: vcrDocs,
-          signatureBase64: signatureUrl,
-        });
-
-        const agreementPath = `agreements/${trackedBooking.id}/initial-agreement.pdf`;
-        agreementPdfUrl = await uploadFileToStorage(pdfDataUri, agreementPath);
-
-        await updateDoc(bookingRef, {
-          'agreement.initialPdfUrl': agreementPdfUrl,
-          'agreement.generatedAt': new Date().toISOString(),
-          'agreement.status': 'available',
-        });
-
-        if (trackedBooking.customer?.email && agreementPdfUrl) {
-          const mailRef = doc(db, 'mail', `${trackedBooking.id}__initial_agreement_ready`);
-          const message = buildAgreementEmailContent({
-            bookingId: trackedBooking.id,
-            customerName: trackedBooking.customer?.name,
-            pdfUrl: agreementPdfUrl,
-          });
-
-          await setDoc(mailRef, {
-            to: trackedBooking.customer.email,
-            message,
-            eventKey: 'initial_agreement_ready',
-            bookingId: trackedBooking.id,
-            audience: 'customer',
-            createdAt: new Date().toISOString(),
-            delivery: {
-              status: 'queued',
-            },
-          });
-        }
-
-        showNotification('VCR and agreement successfully recorded.', 'success');
-      } catch (agreementError) {
-        console.error('Agreement generation error:', agreementError);
-        showNotification('VCR saved, but the agreement link could not be prepared automatically.', 'error');
-      }
+      showNotification('VCR recorded successfully. Your agreement copy will be emailed shortly.', 'success');
     } catch (err) {
       console.error("VCR Upload Error:", err);
       showNotification('Error saving VCR.', 'error');
