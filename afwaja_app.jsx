@@ -550,12 +550,27 @@ export default function App() {
   const [notifications, setNotifications] = useState([]);
   const [kycType, setKycType] = useState('local');
   const [contactSending, setContactSending] = useState(false);
+  const [adminFilters, setAdminFilters] = useState({
+    bookingDate: '',
+    pickupDate: '',
+    supplier: 'all',
+  });
   
   // FIX: Memindahkan state ini dari BookingView ke parent (App) 
   // agar urutan hooks React (Rules of Hooks) tetap konsisten.
   const [readingDoc, setReadingDoc] = useState(null);
 
   const trackedBooking = searchTrackId ? bookings.find(b => b.id === searchTrackId) : null;
+
+  const getDateKey = (value) => {
+    if (!value) return '';
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) return String(value).slice(0, 10);
+    const year = date.getFullYear();
+    const month = `${date.getMonth() + 1}`.padStart(2, '0');
+    const day = `${date.getDate()}`.padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  };
 
   const showNotification = (message, type = 'success') => {
     const id = Date.now();
@@ -2482,10 +2497,33 @@ export default function App() {
   };
 
   const AdminDashboard = () => {
-    const pendingReqs = bookings.filter(b => b.status === 'Paid_Pending').length;
+    const pendingReqs = bookings.filter(b => b.status === 'Paid_Pending' && b?.documents?.status === 'verified').length;
     const pendingKyc = bookings.filter(b => b?.documents?.status === 'submitted').length;
     const successfulBookings = bookings.filter(b => b.status === 'Completed' || b.status === 'Active' || b.status === 'Return_Pending' || b.status === 'Returned');
     const totalSales = successfulBookings.reduce((sum, b) => sum + b.customer.totalPrice + b.customer.pickupFee + b.customer.returnFee, 0); 
+    const supplierFilterOptions = [
+      { value: 'all', label: 'All Suppliers' },
+      { value: 'self', label: 'Own Fleet' },
+      ...Array.from(
+        new Set(
+          bookings
+            .filter(b => b.supplier?.type === 'supplier' && b.supplier?.name)
+            .map(b => b.supplier.name)
+        )
+      ).map(name => ({ value: `supplier:${name}`, label: name }))
+    ];
+    const filteredBookings = [...bookings]
+      .filter((booking) => {
+        const matchesBookingDate = !adminFilters.bookingDate || getDateKey(booking.date) === adminFilters.bookingDate;
+        const matchesPickupDate = !adminFilters.pickupDate || getDateKey(booking.customer?.startDate) === adminFilters.pickupDate;
+        const matchesSupplier =
+          adminFilters.supplier === 'all' ||
+          (adminFilters.supplier === 'self' && booking.supplier?.type === 'self') ||
+          (adminFilters.supplier.startsWith('supplier:') && booking.supplier?.name === adminFilters.supplier.replace('supplier:', ''));
+
+        return matchesBookingDate && matchesPickupDate && matchesSupplier;
+      })
+      .sort((a, b) => new Date(b.date || 0) - new Date(a.date || 0));
 
     return (
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-24 animate-fadeIn font-dm">
@@ -2500,11 +2538,11 @@ export default function App() {
 
         <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-10">
           <div className="glass-card bg-white p-6 rounded-2xl shadow-sm border border-yellow-200">
-            <div className="flex justify-between items-center mb-2"><h3 className="text-yellow-700 font-bold text-sm">Assign Car</h3><Bell size={18} className="text-yellow-600"/></div>
+            <div className="flex justify-between items-center mb-2"><h3 className="text-yellow-700 font-bold text-sm">Ready To Assign</h3><Bell size={18} className="text-yellow-600"/></div>
             <p className="brand text-4xl font-bold text-slate-900">{pendingReqs}</p>
           </div>
           <div className="glass-card bg-white p-6 rounded-2xl shadow-sm border border-purple-200">
-            <div className="flex justify-between items-center mb-2"><h3 className="text-purple-700 font-bold text-sm">Pending KYC</h3><FileCheck size={18} className="text-purple-600"/></div>
+            <div className="flex justify-between items-center mb-2"><h3 className="text-purple-700 font-bold text-sm">Pending KYC Review</h3><FileCheck size={18} className="text-purple-600"/></div>
             <p className="brand text-4xl font-bold text-purple-900">{pendingKyc}</p>
           </div>
           <div className="glass-card bg-white p-6 rounded-2xl shadow-sm border border-slate-200">
@@ -2744,13 +2782,48 @@ export default function App() {
         <div className="glass-card bg-white rounded-3xl shadow-sm border border-slate-200/60 overflow-hidden">
           <div className="p-8 border-b border-slate-100 bg-slate-50/50">
             <h2 className="brand text-2xl font-bold text-slate-900">Booking & Action Logs</h2>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-6">
+              <div>
+                <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Filter by Booking Date</label>
+                <input
+                  type="date"
+                  value={adminFilters.bookingDate}
+                  onChange={(e) => setAdminFilters(prev => ({ ...prev, bookingDate: e.target.value }))}
+                  className="w-full bg-white border border-slate-200 rounded-xl px-4 py-3 focus:ring-2 focus:ring-cyan-500 font-medium"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Filter by Pickup Date</label>
+                <input
+                  type="date"
+                  value={adminFilters.pickupDate}
+                  onChange={(e) => setAdminFilters(prev => ({ ...prev, pickupDate: e.target.value }))}
+                  className="w-full bg-white border border-slate-200 rounded-xl px-4 py-3 focus:ring-2 focus:ring-cyan-500 font-medium"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Filter by Supplier</label>
+                <select
+                  value={adminFilters.supplier}
+                  onChange={(e) => setAdminFilters(prev => ({ ...prev, supplier: e.target.value }))}
+                  className="w-full bg-white border border-slate-200 rounded-xl px-4 py-3 focus:ring-2 focus:ring-cyan-500 font-medium"
+                >
+                  {supplierFilterOptions.map((option) => (
+                    <option key={option.value} value={option.value}>{option.label}</option>
+                  ))}
+                </select>
+              </div>
+            </div>
           </div>
           <div className="overflow-x-auto">
             <table className="w-full text-left font-medium text-sm">
               <thead className="bg-slate-50 border-b border-slate-200 text-slate-500 font-bold text-xs uppercase tracking-wider">
                 <tr>
+                  <th className="px-6 py-5">No.</th>
                   <th className="px-6 py-5">Job ID</th>
                   <th className="px-6 py-5">Customer</th>
+                  <th className="px-6 py-5">Booking Date</th>
+                  <th className="px-6 py-5">Pickup Date</th>
                   <th className="px-6 py-5">Status</th>
                   <th className="px-6 py-5">KYC Status</th>
                   <th className="px-6 py-5">Supplier / Cost</th>
@@ -2759,11 +2832,16 @@ export default function App() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
-                {bookings.length === 0 ? (
-                  <tr><td colSpan="7" className="px-8 py-16 text-center text-slate-400">No records found.</td></tr>
+                {filteredBookings.length === 0 ? (
+                  <tr><td colSpan="10" className="px-8 py-16 text-center text-slate-400">No records found.</td></tr>
                 ) : (
-                  bookings.map((booking) => (
+                  filteredBookings.map((booking, index) => (
                     <tr key={booking.id} className="hover:bg-slate-50/80 transition-colors">
+                      <td className="px-6 py-4">
+                        <span className="inline-flex items-center justify-center w-8 h-8 rounded-full bg-slate-100 text-slate-700 font-bold text-xs">
+                          {index + 1}
+                        </span>
+                      </td>
                       <td className="px-6 py-4"><span className="font-bold text-slate-700 font-mono">{booking.id}</span></td>
                       <td className="px-6 py-4">
                         <div className="flex flex-col items-start gap-1">
@@ -2779,7 +2857,19 @@ export default function App() {
                         </div>
                       </td>
                       <td className="px-6 py-4">
-                        {booking.status === 'Paid_Pending' && <span className="inline-flex px-3 py-1 rounded-full text-xs font-bold bg-yellow-100 text-yellow-800 border border-yellow-200">Needs Car</span>}
+                        <div className="flex flex-col">
+                          <span className="font-bold text-slate-900">{formatDateTime(booking.date)}</span>
+                          <span className="text-xs text-slate-500">Created</span>
+                        </div>
+                      </td>
+                      <td className="px-6 py-4">
+                        <div className="flex flex-col">
+                          <span className="font-bold text-slate-900">{formatDateTime(booking.customer.startDate)}</span>
+                          <span className="text-xs text-slate-500">Pickup</span>
+                        </div>
+                      </td>
+                      <td className="px-6 py-4">
+                        {booking.status === 'Paid_Pending' && <span className="inline-flex px-3 py-1 rounded-full text-xs font-bold bg-yellow-100 text-yellow-800 border border-yellow-200">Pending Fulfillment</span>}
                         {booking.status === 'Completed' && <span className="inline-flex px-3 py-1 rounded-full text-xs font-bold bg-blue-100 text-blue-800 border border-blue-200">Confirmed</span>}
                         {booking.status === 'Active' && <span className="inline-flex px-3 py-1 rounded-full text-xs font-bold bg-emerald-100 text-emerald-800 border border-emerald-200"><Car size={12} className="mr-1"/> Active</span>}
                         {booking.status === 'Return_Pending' && <span className="inline-flex px-3 py-1 rounded-full text-xs font-bold bg-orange-100 text-orange-800 border border-orange-200"><Clock size={12} className="mr-1"/> Return Review</span>}
@@ -2805,13 +2895,13 @@ export default function App() {
                       </td>
                       <td className="px-6 py-4 text-center flex flex-col items-center gap-2">
                         
-                        {booking.status === 'Paid_Pending' && (
+                        {booking.status === 'Paid_Pending' && booking.documents?.status === 'verified' && (
                           <button onClick={() => { setManagingBooking(booking); setFulfillmentType('supplier'); }} className="bg-cyan-600 text-white px-4 py-2 rounded-lg font-bold text-xs hover:bg-cyan-700 w-full shadow-sm">
                             Assign Car
                           </button>
                         )}
                         
-                        {booking.status === 'Completed' && booking.documents?.status === 'submitted' && (
+                        {(booking.status === 'Paid_Pending' || booking.status === 'Completed') && booking.documents?.status === 'submitted' && (
                           <button onClick={() => setVerifyingKyc(booking)} className="bg-purple-600 text-white px-4 py-2 rounded-lg font-bold text-xs hover:bg-purple-700 w-full shadow-sm flex justify-center items-center">
                             <FileCheck size={14} className="mr-1"/> Review KYC
                           </button>
