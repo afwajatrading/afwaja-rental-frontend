@@ -479,7 +479,7 @@ const formatDateTime = (dateStr) => {
 
 const getGatewayReturnState = () => {
   if (typeof window === 'undefined') {
-    return { initialView: 'home', bookingId: '', openAdminLogin: false };
+    return { initialView: 'home', bookingId: '', prefillTrackId: '', openAdminLogin: false };
   }
 
   const params = new URLSearchParams(window.location.search);
@@ -488,7 +488,7 @@ const getGatewayReturnState = () => {
   const toyyibStatus = params.get('status_id');
   const bookingId = params.get('bookingId') || params.get('order_id') || '';
   const isPaymentSuccess =
-    Boolean(bookingId) && (status === 'success' || toyyibStatus === '1' || toyyibStatus === '2');
+    Boolean(bookingId) && (status === 'success' || toyyibStatus === '1');
 
   let initialView = 'home';
   let openAdminLogin = false;
@@ -505,6 +505,7 @@ const getGatewayReturnState = () => {
   return {
     initialView: isPaymentSuccess ? 'thank-you' : initialView,
     bookingId,
+    prefillTrackId: isPaymentSuccess || requestedView === 'track' || requestedView === 'invoice' ? bookingId : '',
     openAdminLogin,
   };
 };
@@ -529,7 +530,7 @@ export default function App() {
     name: '', email: '', phone: '', startDate: '', endDate: '', pickupLocation: '', returnLocation: '', destination: '', bankName: '', bankAccount: '', pickupFee: 0, returnFee: 0, totalDays: 0, extraHours: 0, extraHoursFee: 0, totalPrice: 0, appliedDailyRate: 0, discountTier: 'Normal', discountPercentage: 0, deposit: 0, grandTotal: 0, customerType: 'local', paymentMethod: 'fpx'
   });
   const [currentBookingId, setCurrentBookingId] = useState(gatewayReturnState.bookingId || null);
-  const [searchTrackId, setSearchTrackId] = useState(gatewayReturnState.bookingId || '');
+  const [searchTrackId, setSearchTrackId] = useState(gatewayReturnState.prefillTrackId || '');
   const [paymentProcessing, setPaymentProcessing] = useState(false);
   const [activeGateway, setActiveGateway] = useState('');
   const [paymentUrl, setPaymentUrl] = useState('');
@@ -691,9 +692,19 @@ export default function App() {
           updatedPayment.failureReason = 'cancelled_or_failed';
         }
 
-        await updateDoc(bookingDoc.ref, {
+        const updatedFields = {
           payment: updatedPayment,
-        });
+        };
+
+        if (nextStatus === 'success') {
+          updatedFields.status = 'Paid_Pending';
+        } else if (
+          !['Completed', 'Active', 'Return_Pending', 'Returned', 'Refunded'].includes(currentBooking.status)
+        ) {
+          updatedFields.status = 'Payment_Failed';
+        }
+
+        await updateDoc(bookingDoc.ref, updatedFields);
 
         return true;
       };
@@ -706,14 +717,18 @@ export default function App() {
       if (!status && !toyyibStatus) return;
 
       try {
-        if ((status === 'success' || toyyibStatus === '1' || toyyibStatus === '2') && bookingId) {
+        if ((status === 'success' || toyyibStatus === '1') && bookingId) {
           setCurrentBookingId(bookingId);
           setSearchTrackId(bookingId);
           setCurrentView('thank-you');
           await syncPaymentStatusFromGatewayReturn(bookingId, 'success');
+        } else if (toyyibStatus === '2' && bookingId) {
+          setCurrentBookingId(bookingId);
+          setCurrentView('home');
+          showNotification('Payment is still pending confirmation.', 'info');
         } else if ((status === 'cancelled' || toyyibStatus === '3') && bookingId) {
           setCurrentBookingId(bookingId);
-          setSearchTrackId(bookingId);
+          setCurrentView('home');
           await syncPaymentStatusFromGatewayReturn(bookingId, 'failed');
           showNotification('Payment cancelled or failed.', 'error');
         } else if (status === 'cancelled' || toyyibStatus === '3') {
@@ -833,7 +848,7 @@ export default function App() {
       car: selectedCar,
       customer: { ...bookingDetails, phone: cleanPhone }, 
       date: new Date().toISOString(),
-      status: 'Paid_Pending',
+      status: 'Payment_Pending',
       payment: {
         status: 'pending',
         gateway: isLocal ? 'toyyibpay' : 'stripe',
@@ -1961,8 +1976,8 @@ export default function App() {
       )}
 
       <div className="flex justify-center gap-4 mt-8 pt-8 border-t border-slate-200">
-        <button onClick={() => { setSearchTrackId(currentBookingId); setCurrentView('track'); }} className="bg-slate-900 text-white px-8 py-3 rounded-xl font-bold shadow-md hover:bg-slate-800 transition-colors">
-          Track Booking Status
+        <button onClick={() => { setCurrentView('home'); window.scrollTo(0,0); }} className="bg-slate-900 text-white px-8 py-3 rounded-xl font-bold shadow-md hover:bg-slate-800 transition-colors">
+          Back to Home
         </button>
       </div>
     </div>
@@ -2020,6 +2035,12 @@ export default function App() {
   );
 
   const CustomerTrackView = () => {
+    const isTrackableBooking =
+      trackedBooking &&
+      trackedBooking.payment?.status === 'success' &&
+      trackedBooking.status !== 'Payment_Pending' &&
+      trackedBooking.status !== 'Payment_Failed';
+
     return (
       <div className="max-w-3xl mx-auto px-4 py-24 animate-fadeIn font-dm">
         <div className="text-center mb-10">
@@ -2043,7 +2064,22 @@ export default function App() {
           </div>
         </div>
 
-        {trackedBooking && (
+        {trackedBooking && !isTrackableBooking && (
+          <div className="bg-white rounded-3xl shadow-xl border border-red-200 overflow-hidden animate-fadeIn max-w-2xl mx-auto">
+            <div className="bg-red-50 p-8 text-center">
+              <XCircle className="w-12 h-12 text-red-500 mx-auto mb-4" />
+              <h3 className="brand text-2xl font-bold text-slate-900 mb-2">Tracking Not Available Yet</h3>
+              <p className="text-slate-600 mb-3">
+                This booking cannot be tracked because payment has not been completed successfully.
+              </p>
+              <p className="text-sm font-bold text-red-700">
+                Current payment status: {trackedBooking.payment?.status === 'failed' ? 'Failed / Cancelled' : 'Pending'}
+              </p>
+            </div>
+          </div>
+        )}
+
+        {isTrackableBooking && (
           <div className="bg-white rounded-3xl shadow-xl border border-slate-200 overflow-hidden animate-fadeIn">
             <div className="bg-slate-900 p-8 sm:p-10 pb-12">
               <div className="flex items-center justify-between relative max-w-lg mx-auto">
@@ -2957,6 +2993,8 @@ export default function App() {
                         </div>
                       </td>
                       <td className="px-6 py-4">
+                        {booking.status === 'Payment_Pending' && <span className="inline-flex px-3 py-1 rounded-full text-xs font-bold bg-slate-100 text-slate-700 border border-slate-200">Payment Pending</span>}
+                        {booking.status === 'Payment_Failed' && <span className="inline-flex px-3 py-1 rounded-full text-xs font-bold bg-red-100 text-red-800 border border-red-200">Payment Failed</span>}
                         {booking.status === 'Paid_Pending' && <span className="inline-flex px-3 py-1 rounded-full text-xs font-bold bg-yellow-100 text-yellow-800 border border-yellow-200">Pending Fulfillment</span>}
                         {booking.status === 'Completed' && <span className="inline-flex px-3 py-1 rounded-full text-xs font-bold bg-blue-100 text-blue-800 border border-blue-200">Confirmed</span>}
                         {booking.status === 'Active' && <span className="inline-flex px-3 py-1 rounded-full text-xs font-bold bg-emerald-100 text-emerald-800 border border-emerald-200"><Car size={12} className="mr-1"/> Active</span>}
