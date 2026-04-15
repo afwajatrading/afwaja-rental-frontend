@@ -543,6 +543,7 @@ export default function App() {
   const [isDrawing, setIsDrawing] = useState(false);
   const [managingBooking, setManagingBooking] = useState(null);
   const [verifyingKyc, setVerifyingKyc] = useState(null); 
+  const [selectedKycPreview, setSelectedKycPreview] = useState(null);
   const [viewingVcr, setViewingVcr] = useState(null);
   const [viewingReturnVcr, setViewingReturnVcr] = useState(null);
   const [fulfillmentType, setFulfillmentType] = useState('supplier'); 
@@ -551,8 +552,10 @@ export default function App() {
   const [kycType, setKycType] = useState('local');
   const [contactSending, setContactSending] = useState(false);
   const [adminFilters, setAdminFilters] = useState({
-    bookingDate: '',
-    pickupDate: '',
+    bookingDateFrom: '',
+    bookingDateTo: '',
+    pickupDateFrom: '',
+    pickupDateTo: '',
     supplier: 'all',
   });
   
@@ -570,6 +573,14 @@ export default function App() {
     const month = `${date.getMonth() + 1}`.padStart(2, '0');
     const day = `${date.getDate()}`.padStart(2, '0');
     return `${year}-${month}-${day}`;
+  };
+
+  const isWithinDateRange = (value, from, to) => {
+    const dateKey = getDateKey(value);
+    if (!dateKey) return !from && !to;
+    if (from && dateKey < from) return false;
+    if (to && dateKey > to) return false;
+    return true;
   };
 
   const showNotification = (message, type = 'success') => {
@@ -958,7 +969,15 @@ export default function App() {
   };
 
   const handleCopyBroadcast = (booking) => {
-    const msg = `NEW BOOKING AFWAJA RENTAL\nID: ${booking.id}\nCar: ${booking.car.name}\nCustomer: ${booking.customer.name}\nPickup: ${formatDateTime(booking.customer.startDate)} @ ${booking.customer.pickupLocation}\nReturn: ${formatDateTime(booking.customer.endDate)} @ ${booking.customer.returnLocation}`;
+    const msg = [
+      'AFWAJA CAR RENTAL-JOB CONFIRMED',
+      `ID: ${booking.id}`,
+      `Car Model: ${booking.car.name}`,
+      `Pickup: ${formatDateTime(booking.customer.startDate)}, ${booking.customer.pickupLocation}`,
+      `Return: ${formatDateTime(booking.customer.endDate)}, ${booking.customer.returnLocation}`,
+      'Please PM with pictures & total price if available',
+      'Thank you',
+    ].join('\n');
     navigator.clipboard.writeText(msg);
     showNotification('Message copied to clipboard!', 'info');
   };
@@ -2500,7 +2519,8 @@ export default function App() {
     const pendingReqs = bookings.filter(b => b.status === 'Paid_Pending' && b?.documents?.status === 'verified').length;
     const pendingKyc = bookings.filter(b => b?.documents?.status === 'submitted').length;
     const successfulBookings = bookings.filter(b => b.status === 'Completed' || b.status === 'Active' || b.status === 'Return_Pending' || b.status === 'Returned');
-    const totalSales = successfulBookings.reduce((sum, b) => sum + b.customer.totalPrice + b.customer.pickupFee + b.customer.returnFee, 0); 
+    const totalSales = successfulBookings.reduce((sum, b) => sum + b.customer.totalPrice + b.customer.pickupFee + b.customer.returnFee, 0);
+    const totalNetProfit = successfulBookings.reduce((sum, b) => sum + Number(b.profit || 0), 0);
     const supplierFilterOptions = [
       { value: 'all', label: 'All Suppliers' },
       { value: 'self', label: 'Own Fleet' },
@@ -2514,8 +2534,16 @@ export default function App() {
     ];
     const filteredBookings = [...bookings]
       .filter((booking) => {
-        const matchesBookingDate = !adminFilters.bookingDate || getDateKey(booking.date) === adminFilters.bookingDate;
-        const matchesPickupDate = !adminFilters.pickupDate || getDateKey(booking.customer?.startDate) === adminFilters.pickupDate;
+        const matchesBookingDate = isWithinDateRange(
+          booking.date,
+          adminFilters.bookingDateFrom,
+          adminFilters.bookingDateTo
+        );
+        const matchesPickupDate = isWithinDateRange(
+          booking.customer?.startDate,
+          adminFilters.pickupDateFrom,
+          adminFilters.pickupDateTo
+        );
         const matchesSupplier =
           adminFilters.supplier === 'all' ||
           (adminFilters.supplier === 'self' && booking.supplier?.type === 'self') ||
@@ -2549,9 +2577,9 @@ export default function App() {
             <div className="flex justify-between items-center mb-2"><h3 className="text-slate-500 font-bold text-sm">Gross Revenue</h3><Wallet size={18} className="text-blue-600"/></div>
             <p className="brand text-2xl font-bold text-slate-900">MYR {totalSales}</p>
           </div>
-          <div className="glass-card bg-gradient-to-br from-cyan-600 to-teal-600 p-6 rounded-2xl shadow-md border border-cyan-400 text-white">
-            <div className="flex justify-between items-center mb-2"><h3 className="font-bold text-cyan-100 text-sm">Net Profit</h3><TrendingUp size={18}/></div>
-            <p className="brand text-3xl font-bold">MYR {successfulBookings.reduce((sum, b) => sum + b.profit, 0)}</p>
+          <div className="glass-card bg-gradient-to-br from-emerald-600 via-teal-600 to-cyan-700 p-6 rounded-2xl shadow-md border border-emerald-300 text-white">
+            <div className="flex justify-between items-center mb-2"><h3 className="font-bold text-emerald-50 text-sm">Net Profit</h3><TrendingUp size={18} className="text-white"/></div>
+            <p className="brand text-3xl font-bold text-white drop-shadow-sm">MYR {totalNetProfit}</p>
           </div>
         </div>
 
@@ -2652,11 +2680,18 @@ export default function App() {
                     { key: 'license', label: verifyingKyc.customer.customerType === 'international' ? 'Driving License / IDP' : 'Driving License' },
                     { key: 'bill', label: verifyingKyc.customer.customerType === 'international' ? 'Flight / Hotel Booking' : 'Utility Bill' }
                   ].map(doc => (
-                    <div key={doc.key} className="border border-slate-200 p-2 rounded-xl bg-slate-50">
+                    <div key={doc.key} className="border border-slate-200 p-3 rounded-xl bg-slate-50">
                       <p className="text-xs font-bold text-slate-500 uppercase text-center mb-2">{doc.label}</p>
-                      <div className="aspect-[4/3] bg-slate-200 rounded-lg overflow-hidden relative group">
-                        <img src={verifyingKyc.documents?.[doc.key]} alt={doc.key} className="w-full h-full object-cover" />
-                      </div>
+                      <button
+                        type="button"
+                        onClick={() => setSelectedKycPreview({ src: verifyingKyc.documents?.[doc.key], label: doc.label })}
+                        className="w-full text-left"
+                      >
+                        <div className="aspect-[4/5] bg-white rounded-lg overflow-hidden border border-slate-200 shadow-sm p-2 flex items-center justify-center transition hover:border-cyan-300 hover:shadow-md">
+                          <img src={verifyingKyc.documents?.[doc.key]} alt={doc.key} className="w-full h-full object-contain" />
+                        </div>
+                        <p className="mt-2 text-center text-[11px] font-bold uppercase tracking-wider text-cyan-700">Click to enlarge</p>
+                      </button>
                     </div>
                   ))}
                 </div>
@@ -2668,6 +2703,35 @@ export default function App() {
                   <button onClick={() => handleVerifyKyc(verifyingKyc.id, 'rejected')} className="px-8 bg-red-100 text-red-700 py-4 rounded-xl font-bold hover:bg-red-200 transition-colors flex justify-center items-center">
                     <XCircle size={20} className="mr-2"/> Reject
                   </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {selectedKycPreview && (
+          <div className="fixed inset-0 bg-slate-950/85 backdrop-blur-sm z-[60] flex items-center justify-center p-4">
+            <div className="w-full max-w-5xl">
+              <div className="flex items-center justify-between mb-4 text-white">
+                <div>
+                  <p className="text-xs font-bold uppercase tracking-[0.2em] text-cyan-300">KYC Preview</p>
+                  <h3 className="brand text-2xl font-bold">{selectedKycPreview.label}</h3>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setSelectedKycPreview(null)}
+                  className="w-11 h-11 rounded-full border border-white/20 bg-white/10 flex items-center justify-center hover:bg-white/20 transition"
+                >
+                  <X size={22} />
+                </button>
+              </div>
+              <div className="bg-white rounded-3xl shadow-2xl p-4 sm:p-6">
+                <div className="bg-slate-100 rounded-2xl border border-slate-200 min-h-[60vh] flex items-center justify-center overflow-hidden">
+                  <img
+                    src={selectedKycPreview.src}
+                    alt={selectedKycPreview.label}
+                    className="max-w-full max-h-[75vh] object-contain"
+                  />
                 </div>
               </div>
             </div>
@@ -2785,21 +2849,45 @@ export default function App() {
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-6">
               <div>
                 <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Filter by Booking Date</label>
-                <input
-                  type="date"
-                  value={adminFilters.bookingDate}
-                  onChange={(e) => setAdminFilters(prev => ({ ...prev, bookingDate: e.target.value }))}
-                  className="w-full bg-white border border-slate-200 rounded-xl px-4 py-3 focus:ring-2 focus:ring-cyan-500 font-medium"
-                />
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <input
+                    type="date"
+                    value={adminFilters.bookingDateFrom}
+                    onChange={(e) => setAdminFilters(prev => ({ ...prev, bookingDateFrom: e.target.value }))}
+                    className="w-full bg-white border border-slate-200 rounded-xl px-4 py-3 focus:ring-2 focus:ring-cyan-500 font-medium"
+                  />
+                  <input
+                    type="date"
+                    value={adminFilters.bookingDateTo}
+                    onChange={(e) => setAdminFilters(prev => ({ ...prev, bookingDateTo: e.target.value }))}
+                    className="w-full bg-white border border-slate-200 rounded-xl px-4 py-3 focus:ring-2 focus:ring-cyan-500 font-medium"
+                  />
+                </div>
+                <div className="mt-2 flex justify-between text-[11px] font-semibold uppercase tracking-wider text-slate-400">
+                  <span>From</span>
+                  <span>To</span>
+                </div>
               </div>
               <div>
                 <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Filter by Pickup Date</label>
-                <input
-                  type="date"
-                  value={adminFilters.pickupDate}
-                  onChange={(e) => setAdminFilters(prev => ({ ...prev, pickupDate: e.target.value }))}
-                  className="w-full bg-white border border-slate-200 rounded-xl px-4 py-3 focus:ring-2 focus:ring-cyan-500 font-medium"
-                />
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <input
+                    type="date"
+                    value={adminFilters.pickupDateFrom}
+                    onChange={(e) => setAdminFilters(prev => ({ ...prev, pickupDateFrom: e.target.value }))}
+                    className="w-full bg-white border border-slate-200 rounded-xl px-4 py-3 focus:ring-2 focus:ring-cyan-500 font-medium"
+                  />
+                  <input
+                    type="date"
+                    value={adminFilters.pickupDateTo}
+                    onChange={(e) => setAdminFilters(prev => ({ ...prev, pickupDateTo: e.target.value }))}
+                    className="w-full bg-white border border-slate-200 rounded-xl px-4 py-3 focus:ring-2 focus:ring-cyan-500 font-medium"
+                  />
+                </div>
+                <div className="mt-2 flex justify-between text-[11px] font-semibold uppercase tracking-wider text-slate-400">
+                  <span>From</span>
+                  <span>To</span>
+                </div>
               </div>
               <div>
                 <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Filter by Supplier</label>
