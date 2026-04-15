@@ -471,10 +471,48 @@ const uploadBinaryToStorage = async (binary, path, contentType) => {
 // --- UTILITAS FORMAT TARIKH ---
 const formatDateTime = (dateStr) => {
   if (!dateStr) return '-';
-  return new Date(dateStr).toLocaleString('en-MY', {
-    day: '2-digit', month: 'short', year: 'numeric',
-    hour: '2-digit', minute: '2-digit', hour12: true
-  });
+
+  const localDateTimeMatch = String(dateStr).match(
+    /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})(?::(\d{2}))?$/
+  );
+
+  if (localDateTimeMatch) {
+    const [, year, month, day, hour, minute, second = '00'] = localDateTimeMatch;
+    const utcDate = new Date(
+      Date.UTC(
+        Number(year),
+        Number(month) - 1,
+        Number(day),
+        Number(hour),
+        Number(minute),
+        Number(second)
+      )
+    );
+
+    return utcDate.toLocaleString('en-MY', {
+      day: '2-digit',
+      month: 'short',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: true,
+      timeZone: 'UTC',
+    });
+  }
+
+  try {
+    return new Date(dateStr).toLocaleString('en-MY', {
+      day: '2-digit',
+      month: 'short',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: true,
+      timeZone: 'Asia/Kuala_Lumpur',
+    });
+  } catch (error) {
+    return dateStr;
+  }
 };
 
 const getGatewayReturnState = () => {

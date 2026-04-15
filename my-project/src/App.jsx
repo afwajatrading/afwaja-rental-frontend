@@ -241,6 +241,52 @@ const processImageWithWatermark = async (file) => {
 
 const formatCurrency = (amount) => `MYR ${Number(amount || 0).toFixed(2)}`;
 
+const formatDateTime = (dateStr) => {
+  if (!dateStr) return '-';
+
+  const localDateTimeMatch = String(dateStr).match(
+    /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})(?::(\d{2}))?$/
+  );
+
+  if (localDateTimeMatch) {
+    const [, year, month, day, hour, minute, second = '00'] = localDateTimeMatch;
+    const utcDate = new Date(
+      Date.UTC(
+        Number(year),
+        Number(month) - 1,
+        Number(day),
+        Number(hour),
+        Number(minute),
+        Number(second)
+      )
+    );
+
+    return utcDate.toLocaleString('en-MY', {
+      day: '2-digit',
+      month: 'short',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: true,
+      timeZone: 'UTC',
+    });
+  }
+
+  try {
+    return new Date(dateStr).toLocaleString('en-MY', {
+      day: '2-digit',
+      month: 'short',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: true,
+      timeZone: 'Asia/Kuala_Lumpur',
+    });
+  } catch (error) {
+    return dateStr;
+  }
+};
+
 const getImageFormatForPdf = (source) => (source?.startsWith('data:image/png') ? 'PNG' : 'JPEG');
 
 const fetchImageAsDataUrl = async (source) => {
@@ -466,15 +512,6 @@ const uploadBinaryToStorage = async (binary, path, contentType) => {
     contentType: contentType || binary.type || 'application/octet-stream',
   });
   return await getDownloadURL(storageRef);
-};
-
-// --- UTILITAS FORMAT TARIKH ---
-const formatDateTime = (dateStr) => {
-  if (!dateStr) return '-';
-  return new Date(dateStr).toLocaleString('en-MY', {
-    day: '2-digit', month: 'short', year: 'numeric',
-    hour: '2-digit', minute: '2-digit', hour12: true
-  });
 };
 
 const getGatewayReturnState = () => {
