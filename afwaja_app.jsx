@@ -479,19 +479,33 @@ const formatDateTime = (dateStr) => {
 
 const getGatewayReturnState = () => {
   if (typeof window === 'undefined') {
-    return { initialView: 'home', bookingId: '' };
+    return { initialView: 'home', bookingId: '', openAdminLogin: false };
   }
 
   const params = new URLSearchParams(window.location.search);
+  const requestedView = params.get('view');
   const status = params.get('status');
   const toyyibStatus = params.get('status_id');
   const bookingId = params.get('bookingId') || params.get('order_id') || '';
   const isPaymentSuccess =
     Boolean(bookingId) && (status === 'success' || toyyibStatus === '1' || toyyibStatus === '2');
 
+  let initialView = 'home';
+  let openAdminLogin = false;
+
+  if (requestedView === 'track' && bookingId) {
+    initialView = 'track';
+  } else if (requestedView === 'invoice' && bookingId) {
+    initialView = 'invoice';
+  } else if (requestedView === 'admin') {
+    initialView = 'home';
+    openAdminLogin = true;
+  }
+
   return {
-    initialView: isPaymentSuccess ? 'thank-you' : 'home',
+    initialView: isPaymentSuccess ? 'thank-you' : initialView,
     bookingId,
+    openAdminLogin,
   };
 };
 
@@ -503,7 +517,7 @@ export default function App() {
   const [user, setUser] = useState(null);
   const [currentView, setCurrentView] = useState(gatewayReturnState.initialView);
   const [isAdmin, setIsAdmin] = useState(false);
-  const [showAdminLogin, setShowAdminLogin] = useState(false);
+  const [showAdminLogin, setShowAdminLogin] = useState(gatewayReturnState.openAdminLogin);
   const [adminPin, setAdminPin] = useState('');
   const [cars, setCars] = useState(INITIAL_CARS);
   const [bookings, setBookings] = useState([]);
