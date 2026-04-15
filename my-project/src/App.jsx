@@ -699,7 +699,7 @@ export default function App() {
         if (nextStatus === 'success') {
           updatedFields.status = 'Paid_Pending';
         } else if (
-          !['Completed', 'Active', 'Return_Pending', 'Returned', 'Refunded'].includes(currentBooking.status)
+          !['Completed', 'Active', 'Return_Pending', 'Returned', 'Refunded', 'Cancelled'].includes(currentBooking.status)
         ) {
           updatedFields.status = 'Payment_Failed';
         }
@@ -951,10 +951,22 @@ export default function App() {
     if (!user || !bookingToReject) return;
     try {
       const bookingRef = doc(db, 'artifacts', appId, 'public', 'data', 'bookings', bookingToReject.docId);
-      await updateDoc(bookingRef, { status: 'Refunded' });
+      await updateDoc(bookingRef, { status: 'Cancelled' });
       setManagingBooking(null);
-      showNotification(`Booking rejected. Refund has been recorded.`, 'error');
+      showNotification(`Booking rejected. Full refund can now be processed from Booking & Action Logs.`, 'error');
     } catch (err) { console.error(err); }
+  };
+
+  const handleFullRefund = async (bookingToRefund) => {
+    if (!user || !bookingToRefund) return;
+    try {
+      const bookingRef = doc(db, 'artifacts', appId, 'public', 'data', 'bookings', bookingToRefund.docId);
+      await updateDoc(bookingRef, { status: 'Refunded' });
+      showNotification('Full refund recorded successfully.', 'success');
+    } catch (err) {
+      console.error(err);
+      showNotification('Error while processing full refund.', 'error');
+    }
   };
 
   const handleApproveReturnAndRefund = async (bookingToReturn) => {
@@ -2121,7 +2133,8 @@ export default function App() {
                 {trackedBooking.status === 'Active' && <span className="inline-flex items-center px-4 py-2 rounded-full text-sm font-bold bg-emerald-100 text-emerald-800 border border-emerald-200 shadow-sm"><Car size={14} className="mr-1.5"/> Currently Rented</span>}
                 {trackedBooking.status === 'Return_Pending' && <span className="inline-flex items-center px-4 py-2 rounded-full text-sm font-bold bg-orange-100 text-orange-800 border border-orange-200 shadow-sm"><Clock size={14} className="mr-1.5"/> Return Inspection</span>}
                 {trackedBooking.status === 'Returned' && <span className="inline-flex items-center px-4 py-2 rounded-full text-sm font-bold bg-slate-200 text-slate-800 border border-slate-300 shadow-sm"><Award size={14} className="mr-1.5"/> Deposit Refunded</span>}
-                {trackedBooking.status === 'Refunded' && <span className="inline-flex items-center px-4 py-2 rounded-full text-sm font-bold bg-red-100 text-red-800 border border-red-200 shadow-sm"><XCircle size={14} className="mr-1.5"/> Cancelled</span>}
+                {trackedBooking.status === 'Cancelled' && <span className="inline-flex items-center px-4 py-2 rounded-full text-sm font-bold bg-red-100 text-red-800 border border-red-200 shadow-sm"><XCircle size={14} className="mr-1.5"/> Cancelled</span>}
+                {trackedBooking.status === 'Refunded' && <span className="inline-flex items-center px-4 py-2 rounded-full text-sm font-bold bg-red-100 text-red-800 border border-red-200 shadow-sm"><Wallet size={14} className="mr-1.5"/> Full Refund Processed</span>}
               </div>
             </div>
             
@@ -2678,7 +2691,7 @@ export default function App() {
                       <CheckCircle size={20} className="mr-2"/> Confirm Vehicle
                     </button>
                     <button type="button" onClick={() => handleRejectBooking(managingBooking)} className="px-6 bg-red-100 text-red-700 py-3.5 rounded-xl font-bold hover:bg-red-200 transition-colors flex justify-center items-center">
-                      <XCircle size={20} className="mr-1"/> Reject & Refund
+                      <XCircle size={20} className="mr-1"/> Reject Booking
                     </button>
                   </div>
                 </form>
@@ -3000,7 +3013,8 @@ export default function App() {
                         {booking.status === 'Active' && <span className="inline-flex px-3 py-1 rounded-full text-xs font-bold bg-emerald-100 text-emerald-800 border border-emerald-200"><Car size={12} className="mr-1"/> Active</span>}
                         {booking.status === 'Return_Pending' && <span className="inline-flex px-3 py-1 rounded-full text-xs font-bold bg-orange-100 text-orange-800 border border-orange-200"><Clock size={12} className="mr-1"/> Return Review</span>}
                         {booking.status === 'Returned' && <span className="inline-flex px-3 py-1 rounded-full text-xs font-bold bg-slate-100 text-slate-800 border border-slate-200">Refunded Dep.</span>}
-                        {booking.status === 'Refunded' && <span className="inline-flex px-3 py-1 rounded-full text-xs font-bold bg-red-100 text-red-800 border border-red-200">Cancelled</span>}
+                        {booking.status === 'Cancelled' && <span className="inline-flex px-3 py-1 rounded-full text-xs font-bold bg-red-100 text-red-800 border border-red-200">Cancelled</span>}
+                        {booking.status === 'Refunded' && <span className="inline-flex px-3 py-1 rounded-full text-xs font-bold bg-emerald-100 text-emerald-800 border border-emerald-200">Full Refund</span>}
                       </td>
                       <td className="px-6 py-4">
                          {(!booking.documents || booking.documents.status === 'pending') && <span className="text-slate-400 text-xs font-bold">Not Uploaded</span>}
@@ -3039,6 +3053,12 @@ export default function App() {
                               <Camera size={14} className="mr-1"/> View Initial VCR
                             </button>
                           </>
+                        )}
+
+                        {booking.status === 'Cancelled' && (
+                          <button onClick={() => handleFullRefund(booking)} className="bg-emerald-600 text-white px-3 py-2 rounded-lg font-bold text-xs hover:bg-emerald-700 transition-colors shadow-sm flex items-center justify-center w-full mt-1">
+                            <Wallet size={14} className="mr-1"/> Full Refund
+                          </button>
                         )}
 
                         {booking.status === 'Return_Pending' && booking.returnVcr?.status === 'submitted' && (
