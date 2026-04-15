@@ -2577,9 +2577,9 @@ export default function App() {
             <div className="flex justify-between items-center mb-2"><h3 className="text-slate-500 font-bold text-sm">Gross Revenue</h3><Wallet size={18} className="text-blue-600"/></div>
             <p className="brand text-2xl font-bold text-slate-900">MYR {totalSales}</p>
           </div>
-          <div className="glass-card bg-gradient-to-br from-emerald-600 via-teal-600 to-cyan-700 p-6 rounded-2xl shadow-md border border-emerald-300 text-white">
-            <div className="flex justify-between items-center mb-2"><h3 className="font-bold text-emerald-50 text-sm">Net Profit</h3><TrendingUp size={18} className="text-white"/></div>
-            <p className="brand text-3xl font-bold text-white drop-shadow-sm">MYR {totalNetProfit}</p>
+          <div className="glass-card bg-gradient-to-br from-emerald-50 via-teal-50 to-cyan-100 p-6 rounded-2xl shadow-md border border-emerald-300">
+            <div className="flex justify-between items-center mb-2"><h3 className="font-bold text-emerald-600 text-sm">Net Profit</h3><TrendingUp size={18} className="text-emerald-600"/></div>
+            <p className="brand text-3xl font-bold text-emerald-600">MYR {totalNetProfit}</p>
           </div>
         </div>
 
