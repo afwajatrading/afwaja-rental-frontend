@@ -585,7 +585,7 @@ export default function App() {
   const [viewingVcr, setViewingVcr] = useState(null);
   const [viewingReturnVcr, setViewingReturnVcr] = useState(null);
   const [fulfillmentType, setFulfillmentType] = useState('supplier'); 
-  const [supplierDetails, setSupplierDetails] = useState({ name: '', cost: '' });
+  const [supplierDetails, setSupplierDetails] = useState({ name: '', cost: '', phone: '' });
   const [notifications, setNotifications] = useState([]);
   const [kycType, setKycType] = useState('local');
   const [contactSending, setContactSending] = useState(false);
@@ -962,12 +962,14 @@ export default function App() {
 
     let finalCost = 0;
     let finalSupplierName = 'Afwaja (Own Fleet)';
+    let finalSupplierPhone = '';
     const totalRevenue = managingBooking.customer.totalPrice + managingBooking.customer.pickupFee + managingBooking.customer.returnFee;
     let finalProfit = totalRevenue; 
 
     if (fulfillmentType === 'supplier') {
       finalCost = parseFloat(supplierDetails.cost);
       finalSupplierName = supplierDetails.name;
+      finalSupplierPhone = supplierDetails.phone;
       finalProfit = totalRevenue - finalCost;
     }
 
@@ -975,11 +977,11 @@ export default function App() {
       const bookingRef = doc(db, 'artifacts', appId, 'public', 'data', 'bookings', managingBooking.docId);
       await updateDoc(bookingRef, {
         status: 'Completed', 
-        supplier: { name: finalSupplierName, cost: finalCost, type: fulfillmentType },
+        supplier: { name: finalSupplierName, cost: finalCost, phone: finalSupplierPhone, type: fulfillmentType },
         profit: finalProfit
       });
       setManagingBooking(null);
-      setSupplierDetails({ name: '', cost: '' });
+      setSupplierDetails({ name: '', cost: '', phone: '' });
       showNotification('Vehicle assigned successfully!');
     } catch(err) { console.error(err); }
   };
@@ -2696,10 +2698,14 @@ export default function App() {
                 <form onSubmit={handleConfirmSupplier}>
                   {fulfillmentType === 'supplier' ? (
                     <>
-                      <div className="grid grid-cols-2 gap-4 mb-6">
+                      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
                         <div>
                           <label className="block text-sm font-bold text-slate-600 mb-1">Supplier Name</label>
                           <input required type="text" className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 focus:ring-2 focus:ring-cyan-500 font-medium" value={supplierDetails.name} onChange={e => setSupplierDetails({...supplierDetails, name: e.target.value})} placeholder="E.g. Din Rental"/>
+                        </div>
+                        <div>
+                          <label className="block text-sm font-bold text-slate-600 mb-1">Phone No.</label>
+                          <input required type="tel" className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 focus:ring-2 focus:ring-cyan-500 font-medium" value={supplierDetails.phone} onChange={e => setSupplierDetails({...supplierDetails, phone: e.target.value})} placeholder="E.g. 0123456789"/>
                         </div>
                         <div>
                           <label className="block text-sm font-bold text-slate-600 mb-1">Net Cost (MYR)</label>
@@ -2998,6 +3004,7 @@ export default function App() {
                   <th className="px-6 py-5">Customer</th>
                   <th className="px-6 py-5">Booking Date</th>
                   <th className="px-6 py-5">Pickup Date</th>
+                  <th className="px-6 py-5">Return Date</th>
                   <th className="px-6 py-5">Status</th>
                   <th className="px-6 py-5">KYC Status</th>
                   <th className="px-6 py-5">Supplier / Cost</th>
@@ -3007,7 +3014,7 @@ export default function App() {
               </thead>
               <tbody className="divide-y divide-slate-100">
                 {filteredBookings.length === 0 ? (
-                  <tr><td colSpan="10" className="px-8 py-16 text-center text-slate-400">No records found.</td></tr>
+                  <tr><td colSpan="11" className="px-8 py-16 text-center text-slate-400">No records found.</td></tr>
                 ) : (
                   filteredBookings.map((booking, index) => (
                     <tr key={booking.id} className="hover:bg-slate-50/80 transition-colors">
@@ -3043,6 +3050,12 @@ export default function App() {
                         </div>
                       </td>
                       <td className="px-6 py-4">
+                        <div className="flex flex-col">
+                          <span className="font-bold text-slate-900">{formatDateTime(booking.customer.endDate)}</span>
+                          <span className="text-xs text-slate-500">Return</span>
+                        </div>
+                      </td>
+                      <td className="px-6 py-4">
                         {booking.status === 'Payment_Pending' && <span className="inline-flex px-3 py-1 rounded-full text-xs font-bold bg-slate-100 text-slate-700 border border-slate-200">Payment Pending</span>}
                         {booking.status === 'Payment_Failed' && <span className="inline-flex px-3 py-1 rounded-full text-xs font-bold bg-red-100 text-red-800 border border-red-200">Payment Failed</span>}
                         {booking.status === 'Paid_Pending' && <span className="inline-flex px-3 py-1 rounded-full text-xs font-bold bg-yellow-100 text-yellow-800 border border-yellow-200">Pending Fulfillment</span>}
@@ -3063,6 +3076,7 @@ export default function App() {
                         {(booking.status === 'Completed' || booking.status === 'Active' || booking.status === 'Return_Pending' || booking.status === 'Returned') ? (
                           <div>
                             <p className="text-xs font-bold text-slate-600">{booking.supplier.type === 'self' ? 'Own Fleet' : booking.supplier.name}</p>
+                            {booking.supplier.type === 'supplier' && booking.supplier.phone && <p className="text-xs text-slate-500">Phone: {booking.supplier.phone}</p>}
                             {booking.supplier.type === 'supplier' && <p className="text-xs text-slate-500">Cost: MYR {booking.supplier.cost}</p>}
                           </div>
                         ) : '-'}
