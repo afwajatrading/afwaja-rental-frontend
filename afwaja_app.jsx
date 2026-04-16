@@ -2746,56 +2746,67 @@ export default function App() {
 
         {verifyingKyc && (
           <div className="fixed inset-0 bg-slate-900/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-            <div className="bg-white rounded-3xl w-full max-w-4xl shadow-2xl overflow-hidden max-h-[90vh] overflow-y-auto">
+            <div className="bg-white rounded-3xl w-full max-w-6xl shadow-2xl overflow-hidden max-h-[90vh] overflow-y-auto">
               <div className="bg-purple-900 p-6 flex justify-between items-center text-white sticky top-0 z-10">
                 <h3 className="brand text-xl font-bold flex items-center"><FileCheck className="mr-2"/> Identity Verification Review</h3>
                 <button onClick={() => setVerifyingKyc(null)} className="text-purple-300 hover:text-white"><X size={24}/></button>
               </div>
               <div className="p-8">
-                <div className="flex justify-between items-center mb-6">
-                   <div>
-                     <div className="flex items-center gap-2">
-                       <p className="font-bold text-lg text-slate-900">{verifyingKyc.customer.name}</p>
-                       {verifyingKyc.customer.customerType === 'international' ? (
-                         <span className="bg-blue-100 text-blue-800 text-xs px-2 py-0.5 rounded-md font-bold flex items-center border border-blue-200"><Globe size={12} className="mr-1"/> Tourist</span>
-                       ) : (
-                         <span className="bg-slate-100 text-slate-600 text-xs px-2 py-0.5 rounded-md font-bold border border-slate-200">Local</span>
-                       )}
-                     </div>
-                     <p className="text-slate-500 text-sm mt-1">ID: {verifyingKyc.id}</p>
-                   </div>
-                   <div className="bg-yellow-50 text-yellow-700 px-4 py-2 rounded-lg font-bold border border-yellow-200 text-sm">Awaiting Review</div>
-                </div>
+                <div className="grid gap-8 lg:grid-cols-[minmax(0,1.3fr)_320px]">
+                  <div>
+                    <div className="flex items-center justify-between mb-4">
+                      <div>
+                        <p className="text-xs font-bold uppercase tracking-[0.2em] text-purple-500">Uploaded Documents</p>
+                        <h4 className="brand text-2xl font-bold text-slate-900 mt-1">Preview & Verify</h4>
+                      </div>
+                      <div className="bg-yellow-50 text-yellow-700 px-4 py-2 rounded-lg font-bold border border-yellow-200 text-sm">Awaiting Review</div>
+                    </div>
 
-                <div className="grid md:grid-cols-3 gap-6 mb-8">
-                  {[
-                    { key: 'ic', label: verifyingKyc.customer.customerType === 'international' ? 'Passport / ID' : 'MyKad (Front)' },
-                    { key: 'license', label: verifyingKyc.customer.customerType === 'international' ? 'Driving License / IDP' : 'Driving License' },
-                    { key: 'bill', label: verifyingKyc.customer.customerType === 'international' ? 'Flight / Hotel Booking' : 'Utility Bill' }
-                  ].map(doc => (
-                    <div key={doc.key} className="border border-slate-200 p-3 rounded-xl bg-slate-50">
-                      <p className="text-xs font-bold text-slate-500 uppercase text-center mb-2">{doc.label}</p>
-                      <button
-                        type="button"
-                        onClick={() => setSelectedKycPreview({ src: verifyingKyc.documents?.[doc.key], label: doc.label })}
-                        className="w-full text-left"
-                      >
-                        <div className="aspect-[4/5] bg-white rounded-lg overflow-hidden border border-slate-200 shadow-sm p-2 flex items-center justify-center transition hover:border-cyan-300 hover:shadow-md">
-                          <img src={verifyingKyc.documents?.[doc.key]} alt={doc.key} className="w-full h-full object-contain" />
+                    <div className="grid md:grid-cols-3 gap-6">
+                      {[
+                        { key: 'ic', label: verifyingKyc.customer.customerType === 'international' ? 'Passport / ID' : 'MyKad (Front)' },
+                        { key: 'license', label: verifyingKyc.customer.customerType === 'international' ? 'Driving License / IDP' : 'Driving License' },
+                        { key: 'bill', label: verifyingKyc.customer.customerType === 'international' ? 'Flight / Hotel Booking' : 'Utility Bill' }
+                      ].map(doc => (
+                        <div key={doc.key} className="border border-slate-200 p-3 rounded-xl bg-slate-50">
+                          <p className="text-xs font-bold text-slate-500 uppercase text-center mb-2">{doc.label}</p>
+                          <button
+                            type="button"
+                            onClick={() => setSelectedKycPreview({ src: verifyingKyc.documents?.[doc.key], label: doc.label })}
+                            className="w-full text-left"
+                          >
+                            <div className="aspect-[4/5] bg-white rounded-lg overflow-hidden border border-slate-200 shadow-sm p-2 flex items-center justify-center transition hover:border-cyan-300 hover:shadow-md">
+                              <img src={verifyingKyc.documents?.[doc.key]} alt={doc.key} className="w-full h-full object-contain" />
+                            </div>
+                            <p className="mt-2 text-center text-[11px] font-bold uppercase tracking-wider text-cyan-700">Click to enlarge</p>
+                          </button>
                         </div>
-                        <p className="mt-2 text-center text-[11px] font-bold uppercase tracking-wider text-cyan-700">Click to enlarge</p>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div className="space-y-4 lg:sticky lg:top-28 self-start">
+                    <div className="border border-slate-200 rounded-2xl bg-slate-50 p-5">
+                      <div className="flex items-center gap-2">
+                        <p className="font-bold text-lg text-slate-900">{verifyingKyc.customer.name}</p>
+                        {verifyingKyc.customer.customerType === 'international' ? (
+                          <span className="bg-blue-100 text-blue-800 text-xs px-2 py-0.5 rounded-md font-bold flex items-center border border-blue-200"><Globe size={12} className="mr-1"/> Tourist</span>
+                        ) : (
+                          <span className="bg-slate-100 text-slate-600 text-xs px-2 py-0.5 rounded-md font-bold border border-slate-200">Local</span>
+                        )}
+                      </div>
+                      <p className="text-slate-500 text-sm mt-1">ID: {verifyingKyc.id}</p>
+                    </div>
+
+                    <div className="flex flex-col gap-4">
+                      <button onClick={() => handleVerifyKyc(verifyingKyc.id, 'verified')} className="w-full bg-emerald-600 text-white py-4 rounded-xl font-bold flex justify-center items-center shadow-md hover:bg-emerald-700 transition-colors">
+                        <CheckCircle size={20} className="mr-2"/> Approve Documents
+                      </button>
+                      <button onClick={() => handleVerifyKyc(verifyingKyc.id, 'rejected')} className="w-full bg-red-100 text-red-700 py-4 rounded-xl font-bold hover:bg-red-200 transition-colors flex justify-center items-center">
+                        <XCircle size={20} className="mr-2"/> Reject
                       </button>
                     </div>
-                  ))}
-                </div>
-
-                <div className="flex gap-4">
-                  <button onClick={() => handleVerifyKyc(verifyingKyc.id, 'verified')} className="flex-1 bg-emerald-600 text-white py-4 rounded-xl font-bold flex justify-center items-center shadow-md hover:bg-emerald-700 transition-colors">
-                    <CheckCircle size={20} className="mr-2"/> Approve Documents
-                  </button>
-                  <button onClick={() => handleVerifyKyc(verifyingKyc.id, 'rejected')} className="px-8 bg-red-100 text-red-700 py-4 rounded-xl font-bold hover:bg-red-200 transition-colors flex justify-center items-center">
-                    <XCircle size={20} className="mr-2"/> Reject
-                  </button>
+                  </div>
                 </div>
               </div>
             </div>
@@ -2833,51 +2844,62 @@ export default function App() {
 
         {viewingVcr && (
           <div className="fixed inset-0 bg-slate-900/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-            <div className="bg-white rounded-3xl w-full max-w-3xl shadow-2xl overflow-hidden max-h-[90vh] overflow-y-auto">
+            <div className="bg-white rounded-3xl w-full max-w-6xl shadow-2xl overflow-hidden max-h-[90vh] overflow-y-auto">
               <div className="bg-slate-900 p-6 flex justify-between items-center text-white sticky top-0 z-10">
                 <h3 className="brand text-xl font-bold flex items-center"><Camera className="mr-2"/> Initial VCR & E-Agreement</h3>
                 <button onClick={() => setViewingVcr(null)} className="text-slate-400 hover:text-white"><X size={24}/></button>
               </div>
               <div className="p-8">
-                <div className="flex justify-between items-center mb-6">
-                   <div>
-                     <p className="font-bold text-lg text-slate-900">{viewingVcr.car.name}</p>
-                     <p className="text-slate-500 text-sm">Customer: {viewingVcr.customer.name}</p>
-                   </div>
-                </div>
-
-                <div className="grid grid-cols-2 sm:grid-cols-3 gap-4 mb-8">
-                  {[
-                    { key: 'front', label: 'Front' },
-                    { key: 'back', label: 'Rear' },
-                    { key: 'left', label: 'Left' },
-                    { key: 'right', label: 'Right' },
-                    { key: 'odometer', label: 'Dashboard/Fuel' }
-                  ].map(doc => (
-                    <div key={doc.key} className="border border-slate-200 p-2 rounded-xl bg-slate-50">
-                      <p className="text-xs font-bold text-slate-500 uppercase text-center mb-2">{doc.label}</p>
-                      <div className="aspect-[4/3] bg-slate-200 rounded-lg overflow-hidden">
-                        <img src={viewingVcr.vcr?.[doc.key]} alt={doc.key} className="w-full h-full object-cover" />
+                <div className="grid gap-8 lg:grid-cols-[minmax(0,1.35fr)_320px]">
+                  <div>
+                    <div className="flex items-center justify-between mb-4">
+                      <div>
+                        <p className="text-xs font-bold uppercase tracking-[0.2em] text-cyan-500">Vehicle Photos</p>
+                        <h4 className="brand text-2xl font-bold text-slate-900 mt-1">Initial VCR Preview</h4>
                       </div>
                     </div>
-                  ))}
-                </div>
 
-                <div className="border border-slate-200 p-4 rounded-xl bg-slate-50 flex items-center justify-between mb-8">
-                  <div>
-                     <p className="text-xs font-bold text-slate-500 uppercase mb-2">Customer Digital Signature</p>
-                     <div className="bg-white border border-slate-200 rounded-lg p-2 inline-block">
-                        {viewingVcr.vcr?.signature ? (
-                           <img src={viewingVcr.vcr.signature} alt="Signature" className="h-20 object-contain" />
-                        ) : <span className="text-sm text-slate-400">No Signature</span>}
-                     </div>
+                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
+                      {[
+                        { key: 'front', label: 'Front' },
+                        { key: 'back', label: 'Rear' },
+                        { key: 'left', label: 'Left' },
+                        { key: 'right', label: 'Right' },
+                        { key: 'odometer', label: 'Dashboard/Fuel' }
+                      ].map(doc => (
+                        <div key={doc.key} className="border border-slate-200 p-2 rounded-xl bg-slate-50">
+                          <p className="text-xs font-bold text-slate-500 uppercase text-center mb-2">{doc.label}</p>
+                          <div className="aspect-[4/3] bg-slate-200 rounded-lg overflow-hidden">
+                            <img src={viewingVcr.vcr?.[doc.key]} alt={doc.key} className="w-full h-full object-cover" />
+                          </div>
+                        </div>
+                      ))}
+                    </div>
                   </div>
-                  <CheckCircle size={40} className="text-emerald-500 opacity-20" />
-                </div>
 
-                <button onClick={() => setViewingVcr(null)} className="w-full bg-slate-200 text-slate-800 py-4 rounded-xl font-bold hover:bg-slate-300 transition-colors">
-                  Close Window
-                </button>
+                  <div className="space-y-4 lg:sticky lg:top-28 self-start">
+                    <div className="border border-slate-200 rounded-2xl bg-slate-50 p-5">
+                      <p className="font-bold text-lg text-slate-900">{viewingVcr.car.name}</p>
+                      <p className="text-slate-500 text-sm">Customer: {viewingVcr.customer.name}</p>
+                    </div>
+
+                    <div className="border border-slate-200 p-4 rounded-xl bg-slate-50 flex items-center justify-between">
+                      <div>
+                         <p className="text-xs font-bold text-slate-500 uppercase mb-2">Customer Digital Signature</p>
+                         <div className="bg-white border border-slate-200 rounded-lg p-2 inline-block">
+                            {viewingVcr.vcr?.signature ? (
+                               <img src={viewingVcr.vcr.signature} alt="Signature" className="h-20 object-contain" />
+                            ) : <span className="text-sm text-slate-400">No Signature</span>}
+                         </div>
+                      </div>
+                      <CheckCircle size={40} className="text-emerald-500 opacity-20" />
+                    </div>
+
+                    <button onClick={() => setViewingVcr(null)} className="w-full bg-slate-200 text-slate-800 py-4 rounded-xl font-bold hover:bg-slate-300 transition-colors">
+                      Close Window
+                    </button>
+                  </div>
+                </div>
               </div>
             </div>
           </div>
@@ -2885,53 +2907,63 @@ export default function App() {
 
         {viewingReturnVcr && (
           <div className="fixed inset-0 bg-slate-900/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-            <div className="bg-white rounded-3xl w-full max-w-3xl shadow-2xl overflow-hidden max-h-[90vh] overflow-y-auto">
+            <div className="bg-white rounded-3xl w-full max-w-6xl shadow-2xl overflow-hidden max-h-[90vh] overflow-y-auto">
               <div className="bg-orange-900 p-6 flex justify-between items-center text-white sticky top-0 z-10">
                 <h3 className="brand text-xl font-bold flex items-center"><Undo2 className="mr-2"/> Return VCR Inspection</h3>
                 <button onClick={() => setViewingReturnVcr(null)} className="text-orange-300 hover:text-white"><X size={24}/></button>
               </div>
               <div className="p-8">
-                <div className="flex justify-between items-center mb-6">
-                   <div>
-                     <p className="font-bold text-lg text-slate-900">{viewingReturnVcr.car.name}</p>
-                     <p className="text-slate-500 text-sm">Customer: {viewingReturnVcr.customer.name}</p>
-                   </div>
-                   <div className="text-right">
-                     <p className="text-xs font-bold text-slate-500">Deposit to Refund</p>
-                     <p className="brand text-2xl font-bold text-emerald-600">MYR {viewingReturnVcr.customer.deposit}</p>
-                   </div>
-                </div>
-
-                <div className="bg-orange-50 border border-orange-200 p-4 rounded-xl mb-6">
-                  <p className="text-sm text-orange-800 font-medium"><AlertTriangle className="inline w-4 h-4 mr-1"/> Please review the return photos below. Verify there are no new damages before refunding the deposit.</p>
-                </div>
-
-                <div className="grid grid-cols-2 sm:grid-cols-3 gap-4 mb-8">
-                  {[
-                    { key: 'front', label: 'Front' },
-                    { key: 'back', label: 'Rear' },
-                    { key: 'left', label: 'Left' },
-                    { key: 'right', label: 'Right' },
-                    { key: 'odometer', label: 'Dashboard/Fuel' }
-                  ].map(doc => (
-                    <div key={doc.key} className="border border-slate-200 p-2 rounded-xl bg-slate-50">
-                      <p className="text-xs font-bold text-slate-500 uppercase text-center mb-2">{doc.label}</p>
-                      <div className="aspect-[4/3] bg-slate-200 rounded-lg overflow-hidden">
-                        <img src={viewingReturnVcr.returnVcr?.[doc.key]} alt={doc.key} className="w-full h-full object-cover" />
+                <div className="grid gap-8 lg:grid-cols-[minmax(0,1.35fr)_320px]">
+                  <div>
+                    <div className="flex items-center justify-between mb-4">
+                      <div>
+                        <p className="text-xs font-bold uppercase tracking-[0.2em] text-orange-500">Return Photos</p>
+                        <h4 className="brand text-2xl font-bold text-slate-900 mt-1">Review Before Refund</h4>
                       </div>
                     </div>
-                  ))}
-                </div>
 
-                <div className="flex gap-4">
-                  <button onClick={() => handleApproveReturnAndRefund(viewingReturnVcr)} className="flex-1 bg-emerald-600 text-white py-4 rounded-xl font-bold hover:bg-emerald-700 transition-colors flex justify-center items-center shadow-md">
-                    <CheckCircle size={20} className="mr-2"/> Approve & Refund
-                  </button>
-                  <button onClick={() => setViewingReturnVcr(null)} className="px-8 bg-slate-100 text-slate-700 py-4 rounded-xl font-bold hover:bg-slate-200 transition-colors flex justify-center items-center">
-                    Close
-                  </button>
+                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
+                      {[
+                        { key: 'front', label: 'Front' },
+                        { key: 'back', label: 'Rear' },
+                        { key: 'left', label: 'Left' },
+                        { key: 'right', label: 'Right' },
+                        { key: 'odometer', label: 'Dashboard/Fuel' }
+                      ].map(doc => (
+                        <div key={doc.key} className="border border-slate-200 p-2 rounded-xl bg-slate-50">
+                          <p className="text-xs font-bold text-slate-500 uppercase text-center mb-2">{doc.label}</p>
+                          <div className="aspect-[4/3] bg-slate-200 rounded-lg overflow-hidden">
+                            <img src={viewingReturnVcr.returnVcr?.[doc.key]} alt={doc.key} className="w-full h-full object-cover" />
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div className="space-y-4 lg:sticky lg:top-28 self-start">
+                    <div className="border border-slate-200 rounded-2xl bg-slate-50 p-5">
+                      <p className="font-bold text-lg text-slate-900">{viewingReturnVcr.car.name}</p>
+                      <p className="text-slate-500 text-sm">Customer: {viewingReturnVcr.customer.name}</p>
+                      <div className="mt-4 pt-4 border-t border-slate-200">
+                        <p className="text-xs font-bold text-slate-500">Deposit to Refund</p>
+                        <p className="brand text-2xl font-bold text-emerald-600">MYR {viewingReturnVcr.customer.deposit}</p>
+                      </div>
+                    </div>
+
+                    <div className="bg-orange-50 border border-orange-200 p-4 rounded-xl">
+                      <p className="text-sm text-orange-800 font-medium"><AlertTriangle className="inline w-4 h-4 mr-1"/> Please review the return photos below. Verify there are no new damages before refunding the deposit.</p>
+                    </div>
+
+                    <div className="flex flex-col gap-4">
+                      <button onClick={() => handleApproveReturnAndRefund(viewingReturnVcr)} className="w-full bg-emerald-600 text-white py-4 rounded-xl font-bold hover:bg-emerald-700 transition-colors flex justify-center items-center shadow-md">
+                        <CheckCircle size={20} className="mr-2"/> Approve & Refund
+                      </button>
+                      <button onClick={() => setViewingReturnVcr(null)} className="w-full bg-slate-100 text-slate-700 py-4 rounded-xl font-bold hover:bg-slate-200 transition-colors flex justify-center items-center">
+                        Close
+                      </button>
+                    </div>
+                  </div>
                 </div>
-              </div>
             </div>
           </div>
         )}
