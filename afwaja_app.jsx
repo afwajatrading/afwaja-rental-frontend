@@ -2745,7 +2745,7 @@ export default function App() {
         )}
 
         {verifyingKyc && (
-          <div className="fixed inset-0 bg-slate-900/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="fixed inset-0 bg-slate-900/80 backdrop-blur-sm z-50 flex items-start justify-center p-4 pt-6 overflow-y-auto">
             <div className="bg-white rounded-3xl w-full max-w-6xl shadow-2xl overflow-hidden max-h-[90vh] overflow-y-auto">
               <div className="bg-purple-900 p-6 flex justify-between items-center text-white sticky top-0 z-10">
                 <h3 className="brand text-xl font-bold flex items-center"><FileCheck className="mr-2"/> Identity Verification Review</h3>
@@ -2843,7 +2843,7 @@ export default function App() {
         )}
 
         {viewingVcr && (
-          <div className="fixed inset-0 bg-slate-900/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="fixed inset-0 bg-slate-900/80 backdrop-blur-sm z-50 flex items-start justify-center p-4 pt-6 overflow-y-auto">
             <div className="bg-white rounded-3xl w-full max-w-6xl shadow-2xl overflow-hidden max-h-[90vh] overflow-y-auto">
               <div className="bg-slate-900 p-6 flex justify-between items-center text-white sticky top-0 z-10">
                 <h3 className="brand text-xl font-bold flex items-center"><Camera className="mr-2"/> Initial VCR & E-Agreement</h3>
@@ -2906,7 +2906,7 @@ export default function App() {
         )}
 
         {viewingReturnVcr && (
-          <div className="fixed inset-0 bg-slate-900/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="fixed inset-0 bg-slate-900/80 backdrop-blur-sm z-50 flex items-start justify-center p-4 pt-6 overflow-y-auto">
             <div className="bg-white rounded-3xl w-full max-w-6xl shadow-2xl overflow-hidden max-h-[90vh] overflow-y-auto">
               <div className="bg-orange-900 p-6 flex justify-between items-center text-white sticky top-0 z-10">
                 <h3 className="brand text-xl font-bold flex items-center"><Undo2 className="mr-2"/> Return VCR Inspection</h3>
