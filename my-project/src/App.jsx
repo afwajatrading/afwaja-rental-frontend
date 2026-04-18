@@ -3972,21 +3972,21 @@ export default function App() {
               </div>
             </div>
           </div>
-          <div className="overflow-x-auto">
-            <table className="w-full text-left font-medium text-sm">
+          <div className="overflow-x-auto pb-2">
+            <table className="w-full min-w-[1640px] table-fixed text-left font-medium text-sm">
               <thead className="bg-slate-50 border-b border-slate-200 text-slate-500 font-bold text-xs uppercase tracking-wider">
                 <tr>
-                  <th className="px-6 py-5">No.</th>
-                  <th className="px-6 py-5">Job ID</th>
-                  <th className="px-6 py-5">Customer</th>
-                  <th className="px-6 py-5">Booking Date</th>
-                  <th className="px-6 py-5">Pickup Date</th>
-                  <th className="px-6 py-5">Return Date</th>
-                  <th className="px-6 py-5">Status</th>
-                  <th className="px-6 py-5">KYC Status</th>
-                  <th className="px-6 py-5">Supplier / Cost</th>
-                  <th className="px-6 py-5">Net Profit</th>
-                  <th className="px-6 py-5 text-center">Action</th>
+                  <th className="px-6 py-5 w-20">No.</th>
+                  <th className="px-6 py-5 w-24">Job ID</th>
+                  <th className="px-6 py-5 w-[360px]">Customer</th>
+                  <th className="px-6 py-5 w-36">Booking Date</th>
+                  <th className="px-6 py-5 w-36">Pickup Date</th>
+                  <th className="px-6 py-5 w-36">Return Date</th>
+                  <th className="px-6 py-5 w-32">Status</th>
+                  <th className="px-6 py-5 w-32">KYC Status</th>
+                  <th className="px-6 py-5 w-36">Supplier / Cost</th>
+                  <th className="px-6 py-5 w-28">Net Profit</th>
+                  <th className="px-6 py-5 w-40 text-center sticky right-0 z-10 bg-slate-50">Action</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
@@ -4001,9 +4001,9 @@ export default function App() {
                         </span>
                       </td>
                       <td className="px-6 py-4"><span className="font-bold text-slate-700 font-mono">{booking.id}</span></td>
-                      <td className="px-6 py-4">
-                        <div className="flex flex-col items-start gap-1">
-                          <div className="flex items-center gap-2">
+                      <td className="px-6 py-4 align-top">
+                        <div className="flex max-w-[360px] flex-col items-start gap-1">
+                          <div className="flex flex-wrap items-center gap-2">
                             <p className="font-bold text-slate-900">{booking.customer.name}</p>
                             {booking.customer.customerType === 'international' ? (
                               <span className="bg-blue-100 text-blue-800 text-[10px] px-2 py-0.5 rounded-full font-bold flex items-center border border-blue-200" title="International Tourist"><Globe size={10} className="mr-1"/> Tourist</span>
@@ -4012,14 +4012,14 @@ export default function App() {
                             )}
                           </div>
                           <p className="font-bold text-cyan-600">{booking.car.name}</p>
-                          <div className="mt-1 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-left">
+                          <div className="mt-1 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-left">
                             <p className="text-[10px] uppercase tracking-[0.16em] text-slate-500 font-bold">Refund Details</p>
                             <p className="text-xs text-slate-700 font-semibold mt-1">
                               {booking.customer.customerType === 'local' ? 'Online bank transfer' : 'Credit / Debit card reversal'}
                             </p>
-                            <p className="text-xs text-slate-500 mt-0.5">{getRefundDetailsLabel(booking.customer)}</p>
+                            <p className="text-xs text-slate-500 mt-0.5 break-all">{getRefundDetailsLabel(booking.customer)}</p>
                             {booking.customer.customerType === 'local' && booking.customer.accountHolderName && (
-                              <p className="text-xs text-slate-500 mt-0.5">Holder: {booking.customer.accountHolderName}</p>
+                              <p className="text-xs text-slate-500 mt-0.5 break-words">Holder: {booking.customer.accountHolderName}</p>
                             )}
                           </div>
                         </div>
@@ -4071,7 +4071,8 @@ export default function App() {
                       <td className="px-6 py-4 font-bold text-lg text-emerald-600">
                         {(booking.status === 'Completed' || booking.status === 'Active' || booking.status === 'Return_Pending' || booking.status === 'Returned') ? `MYR ${booking.profit}` : '-'}
                       </td>
-                      <td className="px-6 py-4 text-center flex flex-col items-center gap-2">
+                      <td className="px-6 py-4 text-center sticky right-0 z-10 bg-white">
+                        <div className="flex flex-col items-center gap-2 min-w-[120px]">
                         
                         {booking.status === 'Paid_Pending' && booking.documents?.status === 'verified' && (
                           <button onClick={() => { setManagingBooking(booking); setFulfillmentType('supplier'); }} className="bg-cyan-600 text-white px-4 py-2 rounded-lg font-bold text-xs hover:bg-cyan-700 w-full shadow-sm">
@@ -4110,6 +4111,7 @@ export default function App() {
                              <FilePlus size={14} className="mr-1"/> Supplier PO
                            </button>
                         )}
+                        </div>
                       </td>
                     </tr>
                   ))
