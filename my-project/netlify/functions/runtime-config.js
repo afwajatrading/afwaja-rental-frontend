@@ -18,6 +18,7 @@ exports.handler = async () => {
     body: JSON.stringify({
       firebaseConfig,
       appId: process.env.APP_ID || 'afwaja-car-rental-app',
+      googleMapsApiKey: process.env.GOOGLE_MAPS_API_KEY || '',
     }),
   }
 }

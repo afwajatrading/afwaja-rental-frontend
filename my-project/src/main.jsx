@@ -66,6 +66,9 @@ const loadRuntimeConfig = async () => {
     if (runtimeConfig?.appId) {
       globalThis.__app_id = runtimeConfig.appId
     }
+    if (runtimeConfig?.googleMapsApiKey) {
+      globalThis.__google_maps_api_key = runtimeConfig.googleMapsApiKey
+    }
   } catch (error) {
     console.warn('Runtime config endpoint unavailable, using bundled env fallback.', error)
   }

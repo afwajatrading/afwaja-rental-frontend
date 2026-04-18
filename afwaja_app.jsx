@@ -47,6 +47,163 @@ const appId =
     : import.meta.env.VITE_APP_ID || 'afwaja-car-rental-app';
 const MOBILE_IMAGE_ACCEPT = 'image/jpeg,image/png';
 const EMPTY_VCR_DOCS = { front: null, back: null, left: null, right: null, odometer: null };
+const GOOGLE_MAPS_API_KEY =
+  typeof globalThis.__google_maps_api_key !== 'undefined'
+    ? globalThis.__google_maps_api_key
+    : import.meta.env.VITE_GOOGLE_MAPS_API_KEY || '';
+const AFWAJA_HQ = {
+  name: 'Afwaja Car Rental HQ (Cyberjaya)',
+  address: 'Afwaja Car Rental HQ, Cyberjaya, Selangor, Malaysia',
+  lat: 2.9227,
+  lng: 101.6559,
+};
+const DELIVERY_RATE_PER_KM = 2.5;
+
+let googleMapsScriptPromise = null;
+
+const loadGoogleMapsScript = () => {
+  if (typeof window === 'undefined') {
+    return Promise.reject(new Error('Google Maps is only available in the browser.'));
+  }
+
+  if (window.google?.maps?.importLibrary) {
+    return Promise.resolve(window.google.maps);
+  }
+
+  if (!GOOGLE_MAPS_API_KEY) {
+    return Promise.reject(new Error('Google Maps API key is missing.'));
+  }
+
+  if (!googleMapsScriptPromise) {
+    googleMapsScriptPromise = new Promise((resolve, reject) => {
+      const existingScript = document.getElementById('google-maps-script');
+      if (existingScript) {
+        existingScript.addEventListener('load', () => resolve(window.google.maps), { once: true });
+        existingScript.addEventListener('error', () => reject(new Error('Failed to load Google Maps.')), { once: true });
+        return;
+      }
+
+      const script = document.createElement('script');
+      script.id = 'google-maps-script';
+      script.async = true;
+      script.defer = true;
+      script.src = `https://maps.googleapis.com/maps/api/js?key=${encodeURIComponent(GOOGLE_MAPS_API_KEY)}&v=weekly&libraries=places,routes`;
+      script.onload = () => {
+        if (window.google?.maps?.importLibrary) {
+          resolve(window.google.maps);
+        } else {
+          reject(new Error('Google Maps loaded, but the API is unavailable.'));
+        }
+      };
+      script.onerror = () => reject(new Error('Failed to load Google Maps.'));
+      document.head.appendChild(script);
+    });
+  }
+
+  return googleMapsScriptPromise;
+};
+
+const formatDistanceLabel = (distanceKm) => {
+  if (!Number.isFinite(distanceKm) || distanceKm <= 0) return 'At HQ';
+  return `${distanceKm.toFixed(1).replace(/\.0$/, '')} km from HQ`;
+};
+
+const createLocationMeta = ({ placeId, name, address, lat, lng, distanceKm, fee }) => ({
+  placeId,
+  name,
+  address,
+  lat,
+  lng,
+  distanceKm,
+  fee,
+  distanceLabel: formatDistanceLabel(distanceKm),
+});
+
+const HQ_LOCATION_META = createLocationMeta({
+  placeId: 'afwaja-hq',
+  name: AFWAJA_HQ.name,
+  address: AFWAJA_HQ.address,
+  lat: AFWAJA_HQ.lat,
+  lng: AFWAJA_HQ.lng,
+  distanceKm: 0,
+  fee: 0,
+});
+
+const TIME_OPTIONS = Array.from({ length: ((23 - 8) * 2) + 1 }, (_, index) => {
+  const totalMinutes = (8 * 60) + (index * 30);
+  const hour = Math.floor(totalMinutes / 60);
+  const minute = totalMinutes % 60;
+  const value = `${String(hour).padStart(2, '0')}:${String(minute).padStart(2, '0')}`;
+  const meridiem = hour >= 12 ? 'pm' : 'am';
+  const twelveHour = hour % 12 === 0 ? 12 : hour % 12;
+  const label = `${twelveHour}${minute === 0 ? '' : '.30'}${meridiem}`;
+  return { value, label };
+});
+
+const MALAYSIAN_BANK_OPTIONS = [
+  'Affin Bank',
+  'Agrobank',
+  'Al Rajhi Bank',
+  'Alliance Bank',
+  'AmBank',
+  'Ambank Islamic',
+  'Bank Islam',
+  'Bank Muamalat',
+  'Bank Rakyat',
+  'BSN',
+  'CIMB Bank',
+  'CIMB Islamic',
+  'Citibank',
+  'Hong Leong Bank',
+  'Hong Leong Islamic Bank',
+  'HSBC Bank',
+  'Kuwait Finance House (KFH)',
+  'Maybank',
+  'Maybank Islamic',
+  'MBSB Bank',
+  'OCBC Al-Amin',
+  'OCBC Bank',
+  'Public Islamic Bank',
+  'Public Bank',
+  'RHB Bank',
+  'RHB Islamic Bank',
+  'Standard Chartered',
+  'UOB',
+  'UOB Malaysia',
+];
+
+const HERO_PROMO_SLIDES = [
+  {
+    tag: '3+ Days Discount',
+    title: 'Save 10% on 3 days or more',
+    description: 'Book at least 3 days and the discounted daily rate will be applied automatically before checkout.',
+    highlight: '10% OFF',
+  },
+  {
+    tag: 'Weekly Rental',
+    title: 'Enjoy 20% off for weekly trips',
+    description: 'Perfect for longer plans around Klang Valley, Cyberjaya, Putrajaya, or airport stays.',
+    highlight: '20% OFF',
+  },
+  {
+    tag: 'Monthly Rental',
+    title: 'Unlock 45% off for 30+ days',
+    description: 'Our best-value tier for long-term use, project stays, or extended travel in Malaysia.',
+    highlight: '45% OFF',
+  },
+  {
+    tag: 'Wide Vehicle Selection',
+    title: 'More cars to match every plan',
+    description: 'Choose from compact cars, sedans, SUVs, MPVs, and premium people movers for business trips, family holidays, or airport transfers.',
+    highlight: '23 MODELS',
+  },
+  {
+    tag: 'Guaranteed Deposit Return',
+    title: 'Fast and transparent deposit handling',
+    description: 'Complete the return inspection and we will process your refundable deposit with a clear digital trail, status update, and confirmation email.',
+    highlight: 'CLEAR PROCESS',
+  },
+];
 
 // --- DATA KENDARAAN (MOCK DATA) ---
 const INITIAL_CARS = [
@@ -515,6 +672,47 @@ const formatDateTime = (dateStr) => {
   }
 };
 
+const getDatePart = (dateTimeValue) => {
+  if (!dateTimeValue) return '';
+  const match = String(dateTimeValue).match(/^(\d{4}-\d{2}-\d{2})/);
+  return match ? match[1] : '';
+};
+
+const getTimePart = (dateTimeValue) => {
+  if (!dateTimeValue) return '';
+  const match = String(dateTimeValue).match(/T(\d{2}:\d{2})/);
+  return match ? match[1] : '';
+};
+
+const formatDateForInputDisplay = (dateValue) => {
+  if (!dateValue) return 'dd/mm/yyyy';
+  const [year, month, day] = String(dateValue).split('-');
+  if (!year || !month || !day) return 'dd/mm/yyyy';
+  return `${day}/${month}/${year}`;
+};
+
+const maskAccountNumber = (value = '') => {
+  const raw = String(value).replace(/\s+/g, '');
+  if (!raw) return '-';
+  if (raw.length <= 4) return raw;
+  return `${'*'.repeat(Math.max(0, raw.length - 4))}${raw.slice(-4)}`;
+};
+
+const getRefundDetailsLabel = (customer = {}) => {
+  if (customer.customerType === 'local') {
+    const bankName = customer.bankName || 'Bank transfer';
+    const accountNumber = customer.bankAccount ? maskAccountNumber(customer.bankAccount) : 'account pending';
+    return `${bankName} • ${accountNumber}`;
+  }
+
+  return 'Original payment card';
+};
+
+const combineDateAndTime = (dateValue, timeValue) => {
+  if (!dateValue || !timeValue) return '';
+  return `${dateValue}T${timeValue}`;
+};
+
 const getGatewayReturnState = () => {
   if (typeof window === 'undefined') {
     return { initialView: 'home', bookingId: '', prefillTrackId: '', openAdminLogin: false };
@@ -565,7 +763,33 @@ export default function App() {
   const [fleetPricingMode, setFleetPricingMode] = useState('local');
   const [selectedCar, setSelectedCar] = useState(null);
   const [bookingDetails, setBookingDetails] = useState({
-    name: '', email: '', phone: '', startDate: '', endDate: '', pickupLocation: '', returnLocation: '', destination: '', bankName: '', bankAccount: '', pickupFee: 0, returnFee: 0, totalDays: 0, extraHours: 0, extraHoursFee: 0, totalPrice: 0, appliedDailyRate: 0, discountTier: 'Normal', discountPercentage: 0, deposit: 0, grandTotal: 0, customerType: 'local', paymentMethod: 'fpx'
+    name: '',
+    email: '',
+    phone: '',
+    startDate: '',
+    endDate: '',
+    pickupLocation: '',
+    returnLocation: '',
+    pickupLocationMeta: null,
+    returnLocationMeta: null,
+    returnAtDifferentLocation: false,
+    destination: '',
+    accountHolderName: '',
+    bankName: '',
+    bankAccount: '',
+    pickupFee: 0,
+    returnFee: 0,
+    totalDays: 0,
+    extraHours: 0,
+    extraHoursFee: 0,
+    totalPrice: 0,
+    appliedDailyRate: 0,
+    discountTier: 'Normal',
+    discountPercentage: 0,
+    deposit: 0,
+    grandTotal: 0,
+    customerType: 'local',
+    paymentMethod: 'fpx'
   });
   const [currentBookingId, setCurrentBookingId] = useState(gatewayReturnState.bookingId || null);
   const [searchTrackId, setSearchTrackId] = useState(gatewayReturnState.prefillTrackId || '');
@@ -597,6 +821,18 @@ export default function App() {
     pickupDateTo: '',
     supplier: 'all',
   });
+  const [locationModal, setLocationModal] = useState({ open: false, field: 'pickup' });
+  const [locationQuery, setLocationQuery] = useState('');
+  const [locationSuggestions, setLocationSuggestions] = useState([]);
+  const [locationSearchLoading, setLocationSearchLoading] = useState(false);
+  const [locationSearchError, setLocationSearchError] = useState('');
+  const [heroPromoIndex, setHeroPromoIndex] = useState(0);
+  const locationSearchTokenRef = useRef(null);
+  const latestLocationRequestIdRef = useRef(0);
+  const pickupDateInputRef = useRef(null);
+  const returnDateInputRef = useRef(null);
+  const bookingPickupDateInputRef = useRef(null);
+  const bookingReturnDateInputRef = useRef(null);
   
   // FIX: Memindahkan state ini dari BookingView ke parent (App) 
   // agar urutan hooks React (Rules of Hooks) tetap konsisten.
@@ -628,6 +864,191 @@ export default function App() {
     setTimeout(() => {
       setNotifications(prev => prev.filter(n => n.id !== id));
     }, 5000); 
+  };
+
+  const openLocationPicker = (field) => {
+    const existingAddress =
+      field === 'pickup'
+        ? bookingDetails.pickupLocationMeta?.address || bookingDetails.pickupLocation
+        : bookingDetails.returnLocationMeta?.address || bookingDetails.returnLocation;
+
+    locationSearchTokenRef.current = null;
+    setLocationModal({ open: true, field });
+    setLocationQuery(existingAddress || '');
+    setLocationSuggestions([]);
+    setLocationSearchError('');
+  };
+
+  const closeLocationPicker = () => {
+    locationSearchTokenRef.current = null;
+    setLocationModal({ open: false, field: 'pickup' });
+    setLocationQuery('');
+    setLocationSuggestions([]);
+    setLocationSearchError('');
+  };
+
+  const estimateLocationFee = async (location) => {
+    await loadGoogleMapsScript();
+    const { DistanceMatrixService } = await window.google.maps.importLibrary('routes');
+
+    const service = new DistanceMatrixService();
+    const response = await service.getDistanceMatrix({
+      origins: [{ lat: AFWAJA_HQ.lat, lng: AFWAJA_HQ.lng }],
+      destinations: [{ lat: location.lat, lng: location.lng }],
+      travelMode: window.google.maps.TravelMode.DRIVING,
+      unitSystem: window.google.maps.UnitSystem.METRIC,
+    });
+
+    const matrixResult = response.rows?.[0]?.elements?.[0];
+    if (!matrixResult || matrixResult.status !== 'OK') {
+      throw new Error('Unable to calculate delivery distance for this location.');
+    }
+
+    const distanceMeters = matrixResult.distance?.value || 0;
+    const distanceKm = distanceMeters < 500 ? 0 : Math.ceil((distanceMeters / 1000) * 10) / 10;
+    const fee = Math.round(distanceKm * DELIVERY_RATE_PER_KM);
+
+    return createLocationMeta({
+      ...location,
+      distanceKm,
+      fee,
+    });
+  };
+
+  const applyLocationSelection = (field, locationMeta) => {
+    setBookingDetails(prev => {
+      const nextState = {
+        ...prev,
+        [`${field}Location`]: locationMeta.address,
+        [`${field}LocationMeta`]: locationMeta,
+        [`${field}Fee`]: locationMeta.fee,
+      };
+
+      if (field === 'pickup' && !prev.returnAtDifferentLocation) {
+        nextState.returnLocation = locationMeta.address;
+        nextState.returnLocationMeta = locationMeta;
+        nextState.returnFee = locationMeta.fee;
+      }
+
+      return nextState;
+    });
+  };
+
+  const handleSelectHqLocation = () => {
+    applyLocationSelection(locationModal.field, HQ_LOCATION_META);
+    closeLocationPicker();
+  };
+
+  const updateHomepageDateTime = (field, part, value) => {
+    setBookingDetails(prev => {
+      const currentValue = field === 'startDate' ? prev.startDate : prev.endDate;
+      const nextDate = part === 'date' ? value : getDatePart(currentValue);
+      const fallbackTime = field === 'startDate' ? '08:00' : '10:00';
+      const nextTime = part === 'time' ? value : (getTimePart(currentValue) || fallbackTime);
+      const nextValue = nextDate && nextTime ? combineDateAndTime(nextDate, nextTime) : '';
+
+      const nextState = {
+        ...prev,
+        [field]: nextValue,
+      };
+
+      if (field === 'startDate' && prev.endDate) {
+        const currentEndDate = getDatePart(prev.endDate);
+        if (currentEndDate && nextDate && currentEndDate < nextDate) {
+          const currentEndTime = getTimePart(prev.endDate) || '10:00';
+          nextState.endDate = combineDateAndTime(nextDate, currentEndTime);
+        }
+      }
+
+      return nextState;
+    });
+  };
+
+  const handleSelectSuggestedLocation = async (suggestion) => {
+    try {
+      setLocationSearchLoading(true);
+      setLocationSearchError('');
+
+      await loadGoogleMapsScript();
+      const placeDetails = await new Promise((resolve, reject) => {
+        const service = new window.google.maps.places.PlacesService(document.createElement('div'));
+        service.getDetails(
+          {
+            placeId: suggestion.place_id,
+            fields: ['name', 'formatted_address', 'geometry'],
+          },
+          (place, status) => {
+            if (status === window.google.maps.places.PlacesServiceStatus.OK && place) {
+              resolve(place);
+              return;
+            }
+            reject(new Error('Selected place details are unavailable.'));
+          },
+        );
+      });
+
+      if (!placeDetails.geometry?.location) {
+        throw new Error('Selected place has no map coordinates.');
+      }
+
+      const locationMeta = await estimateLocationFee({
+        placeId: suggestion.place_id || '',
+        name: placeDetails.name || suggestion.structured_formatting?.main_text || suggestion.description || 'Selected location',
+        address: placeDetails.formatted_address || suggestion.description || '',
+        lat: placeDetails.geometry.location.lat(),
+        lng: placeDetails.geometry.location.lng(),
+      });
+
+      applyLocationSelection(locationModal.field, locationMeta);
+      closeLocationPicker();
+    } catch (error) {
+      console.error('Location selection failed:', error);
+      setLocationSearchError(error.message || 'Unable to use this location.');
+    } finally {
+      setLocationSearchLoading(false);
+    }
+  };
+
+  const handleHomepageSearch = () => {
+    if (!bookingDetails.startDate || !bookingDetails.endDate) {
+      showNotification('Please set both pickup and return date/time first.', 'error');
+      return;
+    }
+
+    if (!bookingDetails.pickupLocation) {
+      showNotification('Please choose your pickup location first.', 'error');
+      return;
+    }
+
+    if (!bookingDetails.returnLocation) {
+      showNotification('Please choose your return location first.', 'error');
+      return;
+    }
+
+    const pickupDateTime = new Date(bookingDetails.startDate);
+    const returnDateTime = new Date(bookingDetails.endDate);
+    const diffHours = (pickupDateTime - new Date()) / (1000 * 60 * 60);
+    const rentalHours = (returnDateTime - pickupDateTime) / (1000 * 60 * 60);
+
+    if (returnDateTime <= pickupDateTime) {
+      showNotification('Return date/time must be after pickup date/time.', 'error');
+      return;
+    }
+
+    if (diffHours < 24) {
+      showNotification('No urgent booking. Please book at least 24 hours in advance.', 'error');
+      return;
+    }
+
+    if (rentalHours < 48) {
+      showNotification('Minimum rental period is 48 hours (2 days).', 'error');
+      return;
+    }
+
+    const fleetSection = document.getElementById('fleet');
+    if (fleetSection) {
+      fleetSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
   };
 
   // --- LOGIK HARGA & DISKAUN AUTOTMATIK ---
@@ -812,10 +1233,121 @@ export default function App() {
     }
   }, [trackedBooking?.documents?.status, trackedBooking?.vcr?.status, currentView]);
 
+  useEffect(() => {
+    const intervalId = window.setInterval(() => {
+      setHeroPromoIndex(prev => (prev + 1) % HERO_PROMO_SLIDES.length);
+    }, 4200);
+
+    return () => window.clearInterval(intervalId);
+  }, []);
+
+  useEffect(() => {
+    if (!locationModal.open) return;
+
+    const query = locationQuery.trim();
+    if (query.length < 3) {
+      setLocationSuggestions([]);
+      setLocationSearchError('');
+      setLocationSearchLoading(false);
+      return;
+    }
+
+    const requestId = latestLocationRequestIdRef.current + 1;
+    latestLocationRequestIdRef.current = requestId;
+    const timeoutId = setTimeout(async () => {
+      try {
+        setLocationSearchLoading(true);
+        setLocationSearchError('');
+        await loadGoogleMapsScript();
+
+        if (!window.google?.maps?.places?.AutocompleteService) {
+          throw new Error('Places Autocomplete service is unavailable.');
+        }
+
+        if (!locationSearchTokenRef.current) {
+          locationSearchTokenRef.current = new window.google.maps.places.AutocompleteSessionToken();
+        }
+
+        const service = new window.google.maps.places.AutocompleteService();
+        const suggestions = await new Promise((resolve, reject) => {
+          service.getPlacePredictions(
+            {
+              input: query,
+              componentRestrictions: { country: 'my' },
+              sessionToken: locationSearchTokenRef.current,
+            },
+            (predictions, status) => {
+              if (
+                status === window.google.maps.places.PlacesServiceStatus.OK ||
+                status === window.google.maps.places.PlacesServiceStatus.ZERO_RESULTS
+              ) {
+                resolve(predictions || []);
+                return;
+              }
+              reject(new Error('Location suggestions are unavailable right now.'));
+            },
+          );
+        });
+
+        if (latestLocationRequestIdRef.current !== requestId) return;
+        setLocationSuggestions(suggestions || []);
+      } catch (error) {
+        console.error('Location search failed:', error);
+        if (latestLocationRequestIdRef.current !== requestId) return;
+        setLocationSuggestions([]);
+        setLocationSearchError(
+          GOOGLE_MAPS_API_KEY
+            ? 'Location suggestions are unavailable right now.'
+            : 'Google Maps API key is not configured yet.',
+        );
+      } finally {
+        if (latestLocationRequestIdRef.current === requestId) {
+          setLocationSearchLoading(false);
+        }
+      }
+    }, 250);
+
+    return () => clearTimeout(timeoutId);
+  }, [locationModal.open, locationQuery]);
+
+  useEffect(() => {
+    if (bookingDetails.returnAtDifferentLocation) return;
+    if (!bookingDetails.pickupLocationMeta) return;
+
+    setBookingDetails(prev => {
+      if (prev.returnAtDifferentLocation) return prev;
+      return {
+        ...prev,
+        returnLocation: prev.pickupLocation,
+        returnLocationMeta: prev.pickupLocationMeta,
+        returnFee: prev.pickupFee,
+      };
+    });
+  }, [bookingDetails.returnAtDifferentLocation, bookingDetails.pickupLocation, bookingDetails.pickupLocationMeta, bookingDetails.pickupFee]);
+
   // --- HANDLERS ---
   const handleBookNow = (car) => {
     setSelectedCar(car);
-    setBookingDetails({ ...bookingDetails, startDate: '', endDate: '', pickupLocation: '', returnLocation: '', destination: '', bankName: '', bankAccount: '', pickupFee: 0, returnFee: 0, totalDays: 0, extraHours: 0, extraHoursFee: 0, totalPrice: 0, appliedDailyRate: 0, discountTier: 'Normal', discountPercentage: 0, deposit: 0, grandTotal: 0, customerType: fleetPricingMode, paymentMethod: fleetPricingMode === 'local' ? 'fpx' : 'card' });
+    setBookingDetails(prev => ({
+      ...prev,
+      name: '',
+      email: '',
+      phone: '',
+      accountHolderName: '',
+      bankName: '',
+      bankAccount: '',
+      totalDays: 0,
+      extraHours: 0,
+      extraHoursFee: 0,
+      totalPrice: 0,
+      appliedDailyRate: 0,
+      discountTier: 'Normal',
+      discountPercentage: 0,
+      deposit: 0,
+      grandTotal: 0,
+      customerType: fleetPricingMode,
+      paymentMethod: fleetPricingMode === 'local' ? 'fpx' : 'card',
+    }));
     setCurrentView('booking');
     window.scrollTo(0, 0);
   };
@@ -853,12 +1385,8 @@ export default function App() {
       return;
     }
 
-    const activeLocations = isTourist ? TOURIST_LOCATIONS : LOCATIONS;
-
-    const pickupLoc = activeLocations.find(loc => loc.name === bookingDetails.pickupLocation);
-    const returnLoc = activeLocations.find(loc => loc.name === bookingDetails.returnLocation);
-    const pickupFee = pickupLoc ? pickupLoc.fee : 0;
-    const returnFee = returnLoc ? returnLoc.fee : 0;
+    const pickupFee = bookingDetails.pickupLocationMeta?.fee ?? bookingDetails.pickupFee ?? 0;
+    const returnFee = bookingDetails.returnLocationMeta?.fee ?? bookingDetails.returnFee ?? 0;
     
     const deposit = isTourist ? selectedCar.depositTourist : selectedCar.depositLocal;
     const grandTotal = rentalTotal + pickupFee + returnFee + deposit;
@@ -1387,42 +1915,324 @@ export default function App() {
 
   const HomeView = () => {
     const filteredCars = filter === 'all' ? cars : cars.filter(c => c.category === filter);
+    const pickupDateValue = getDatePart(bookingDetails.startDate);
+    const pickupTimeValue = getTimePart(bookingDetails.startDate) || '08:00';
+    const returnDateValue = getDatePart(bookingDetails.endDate);
+    const returnTimeValue = getTimePart(bookingDetails.endDate) || '10:00';
 
     return (
       <div className="animate-fadeIn font-dm pt-20 sm:pt-24">
-        <section className="min-h-[85vh] flex items-center relative overflow-hidden px-4 py-12 sm:py-0">
-          <div className="absolute inset-0 opacity-30 pointer-events-none">
-            <div className="absolute top-20 left-10 w-72 h-72 bg-cyan-400 rounded-full filter blur-[100px]"></div>
-            <div className="absolute bottom-20 right-10 w-96 h-96 bg-teal-300 rounded-full filter blur-[100px]"></div>
-          </div>
-          <div className="max-w-7xl mx-auto w-full grid lg:grid-cols-2 gap-8 lg:gap-12 items-center relative z-10">
-            <div className="fade-in">
-              <div className="inline-flex items-center gap-2 bg-cyan-500/10 border border-cyan-500/30 rounded-full px-4 py-2 mb-6">
-                <span className="w-2 h-2 bg-cyan-500 rounded-full animate-pulse"></span> 
-                <span className="text-teal-700 text-sm font-bold tracking-wide">Explore Malaysia With Ease</span>
-              </div>
-              <h1 className="brand text-5xl sm:text-6xl lg:text-7xl font-bold leading-tight mb-6 text-slate-900">
-                Seamless <br/>
-                <span className="bg-gradient-to-r from-cyan-600 via-cyan-500 to-teal-500 bg-clip-text text-transparent">Car Rental</span> Experience
-              </h1>
-              <p className="text-lg sm:text-xl text-slate-600 mb-8 max-w-xl leading-relaxed">
-                Choose from over 300+ well-maintained vehicles. Enjoy transparent pricing, free delivery to selected areas, and 24/7 roadside assistance.
-              </p>
-              <div className="flex flex-col sm:flex-row gap-4">
-                <button onClick={() => document.getElementById('fleet').scrollIntoView({behavior: 'smooth'})} className="btn-primary px-8 py-4 rounded-xl text-white font-bold text-lg flex items-center justify-center gap-2 shadow-lg shadow-cyan-500/30">
-                  <Car className="w-5 h-5" /> View Our Fleet
-                </button>
-              </div>
-            </div>
-            <div className="relative float-animation hidden lg:block">
-              <div className="relative w-full aspect-square max-w-lg mx-auto">
-                <div className="absolute inset-0 bg-gradient-to-br from-cyan-400/20 to-teal-400/20 rounded-3xl transform rotate-6"></div>
-                <div className="absolute inset-0 glass-card rounded-3xl flex flex-col items-center justify-center border border-white/50">
-                  <img src="https://platform-bcl.bsb-cdn.com/media/2026/03/01KKK1QDM602YYPNC4MPN4YSB1.png" alt="Afwaja Logo" className="w-56 h-auto mb-4 drop-shadow-xl" onError={(e) => { e.target.style.display='none'; e.target.nextSibling.style.display='block'; }}/>
-                  <div className="text-center font-bold text-2xl brand text-slate-800 mt-4">Afwaja Fleet</div>
-                  <div className="text-teal-600 font-medium">300+ Vehicles Available</div>
+        <section className="relative overflow-hidden px-4 pt-8 pb-16 sm:pt-10">
+          <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_left,_rgba(56,189,248,0.22),_transparent_34%),radial-gradient(circle_at_85%_15%,_rgba(34,211,238,0.18),_transparent_30%),linear-gradient(135deg,_#06111d_0%,_#0b1c2f_42%,_#12344d_100%)]"></div>
+          <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(14,165,233,0.08)_0%,transparent_28%,rgba(8,47,73,0.18)_100%)]"></div>
+          <div className="absolute inset-x-0 bottom-0 h-40 bg-gradient-to-t from-slate-950/60 to-transparent pointer-events-none"></div>
+          <div className="max-w-7xl mx-auto relative z-10">
+            <div className="min-h-[78vh] flex items-center justify-center">
+              <div className="w-full max-w-4xl rounded-[32px] border border-cyan-300/15 bg-slate-950/45 backdrop-blur-xl shadow-2xl shadow-sky-950/35 p-6 sm:p-8 lg:p-10">
+                <div className="inline-flex items-center gap-2 bg-cyan-400/10 border border-cyan-300/20 rounded-full px-4 py-2 mb-5">
+                  <span className="w-2 h-2 bg-sky-300 rounded-full animate-pulse"></span>
+                  <span className="text-cyan-100 text-xs sm:text-sm font-bold tracking-[0.18em] uppercase">Book With Confidence</span>
+                </div>
+                <h1 className="brand text-4xl sm:text-5xl font-bold text-white leading-tight mb-3">
+                  Premium Car Rental,
+                  <span className="block text-sky-300">Delivered to You.</span>
+                </h1>
+                <p className="text-slate-200/80 mb-6 leading-relaxed max-w-2xl">
+                  Experience a hassle-free car rental process. Plan your journey with ease.
+                </p>
+
+                <div className="space-y-4">
+                  <div className="grid sm:grid-cols-2 gap-3">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setFleetPricingMode('local');
+                        setBookingDetails(prev => ({
+                          ...prev,
+                          customerType: 'local',
+                          paymentMethod: 'fpx',
+                        }));
+                      }}
+                      className={`rounded-2xl border-2 px-5 py-4 font-bold text-sm sm:text-base transition-all ${
+                        fleetPricingMode === 'local'
+                          ? 'border-sky-300 bg-gradient-to-r from-sky-50 to-cyan-50 text-cyan-900 shadow-lg shadow-sky-500/10'
+                          : 'border-white/10 bg-white/5 text-white/80 hover:bg-white/10'
+                      }`}
+                    >
+                      Malaysian Citizen
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setFleetPricingMode('international');
+                        setBookingDetails(prev => ({
+                          ...prev,
+                          customerType: 'international',
+                          paymentMethod: 'card',
+                        }));
+                      }}
+                      className={`rounded-2xl border-2 px-5 py-4 font-bold text-sm sm:text-base transition-all ${
+                        fleetPricingMode === 'international'
+                          ? 'border-sky-300 bg-gradient-to-r from-sky-50 to-cyan-50 text-cyan-900 shadow-lg shadow-sky-500/10'
+                          : 'border-white/10 bg-white/5 text-white/80 hover:bg-white/10'
+                      }`}
+                    >
+                      International Tourist
+                    </button>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={() => openLocationPicker('pickup')}
+                    className="w-full bg-white text-slate-900 rounded-2xl px-5 py-4 flex items-center justify-between gap-3 shadow-lg shadow-black/10 hover:-translate-y-0.5 transition"
+                  >
+                    <span className="flex items-center gap-3 text-left">
+                      <MapPin className="text-cyan-600 flex-shrink-0" size={20} />
+                      <span className="font-medium">
+                        {bookingDetails.pickupLocation || 'Select pickup location'}
+                      </span>
+                    </span>
+                    <Search size={18} className="text-slate-500 flex-shrink-0" />
+                  </button>
+
+                  <div className="grid lg:grid-cols-2 gap-4">
+                    <div className="rounded-[28px] border border-white/10 bg-white/5 p-4 sm:p-5">
+                      <p className="text-xs uppercase tracking-[0.22em] text-cyan-200 font-bold mb-3">Pickup</p>
+                      <div className="grid sm:grid-cols-[1.3fr_0.9fr] gap-3">
+                        <div className="relative">
+                          <button
+                            type="button"
+                            onClick={() => pickupDateInputRef.current?.showPicker?.()}
+                            className="w-full bg-white text-slate-900 rounded-2xl px-5 py-4 flex items-center justify-between gap-3 shadow-lg shadow-black/10 text-left"
+                          >
+                            <span className="flex items-center gap-3">
+                              <Calendar className="text-cyan-600 flex-shrink-0" size={20} />
+                              <span className="font-medium">{formatDateForInputDisplay(pickupDateValue)}</span>
+                            </span>
+                          </button>
+                          <input
+                            ref={pickupDateInputRef}
+                            type="date"
+                            value={pickupDateValue}
+                            min={new Date().toISOString().slice(0, 10)}
+                            onChange={(e) => updateHomepageDateTime('startDate', 'date', e.target.value)}
+                            className="absolute inset-0 opacity-0 pointer-events-none"
+                            tabIndex={-1}
+                          />
+                        </div>
+                        <label className="bg-white rounded-2xl px-5 py-4 flex items-center gap-3 shadow-lg shadow-black/10">
+                          <Clock className="text-cyan-600 flex-shrink-0" size={20} />
+                          <select
+                            value={pickupTimeValue}
+                            onChange={(e) => updateHomepageDateTime('startDate', 'time', e.target.value)}
+                            className="w-full bg-transparent outline-none text-slate-900 font-medium"
+                          >
+                            {TIME_OPTIONS.map((option) => (
+                              <option key={option.value} value={option.value}>
+                                {option.label}
+                              </option>
+                            ))}
+                          </select>
+                        </label>
+                      </div>
+                    </div>
+                    <div className="rounded-[28px] border border-white/10 bg-white/5 p-4 sm:p-5">
+                      <p className="text-xs uppercase tracking-[0.22em] text-cyan-200 font-bold mb-3">Return</p>
+                      <div className="grid sm:grid-cols-[1.3fr_0.9fr] gap-3">
+                        <div className="relative">
+                          <button
+                            type="button"
+                            onClick={() => returnDateInputRef.current?.showPicker?.()}
+                            className="w-full bg-white text-slate-900 rounded-2xl px-5 py-4 flex items-center justify-between gap-3 shadow-lg shadow-black/10 text-left"
+                          >
+                            <span className="flex items-center gap-3">
+                              <Calendar className="text-cyan-600 flex-shrink-0" size={20} />
+                              <span className="font-medium">{formatDateForInputDisplay(returnDateValue)}</span>
+                            </span>
+                          </button>
+                          <input
+                            ref={returnDateInputRef}
+                            type="date"
+                            value={returnDateValue}
+                            min={pickupDateValue || new Date().toISOString().slice(0, 10)}
+                            onChange={(e) => updateHomepageDateTime('endDate', 'date', e.target.value)}
+                            className="absolute inset-0 opacity-0 pointer-events-none"
+                            tabIndex={-1}
+                          />
+                        </div>
+                        <label className="bg-white rounded-2xl px-5 py-4 flex items-center gap-3 shadow-lg shadow-black/10">
+                          <Clock className="text-cyan-600 flex-shrink-0" size={20} />
+                          <select
+                            value={returnTimeValue}
+                            onChange={(e) => updateHomepageDateTime('endDate', 'time', e.target.value)}
+                            className="w-full bg-transparent outline-none text-slate-900 font-medium"
+                          >
+                            {TIME_OPTIONS.map((option) => (
+                              <option key={option.value} value={option.value}>
+                                {option.label}
+                              </option>
+                            ))}
+                          </select>
+                        </label>
+                      </div>
+                    </div>
+                  </div>
+
+                  <label className="flex items-center gap-3 text-sm text-white/85 font-medium">
+                    <input
+                      type="checkbox"
+                      checked={bookingDetails.returnAtDifferentLocation}
+                      onChange={(e) =>
+                        setBookingDetails(prev => ({
+                          ...prev,
+                          returnAtDifferentLocation: e.target.checked,
+                          ...(e.target.checked
+                            ? {}
+                            : {
+                                returnLocation: prev.pickupLocation,
+                                returnLocationMeta: prev.pickupLocationMeta,
+                                returnFee: prev.pickupFee,
+                              }),
+                        }))
+                      }
+                      className="w-4 h-4 rounded border-white/30 bg-transparent text-cyan-500 focus:ring-cyan-400"
+                    />
+                    Return car at a different location
+                  </label>
+
+                  {bookingDetails.returnAtDifferentLocation ? (
+                    <button
+                      type="button"
+                      onClick={() => openLocationPicker('return')}
+                      className="w-full bg-white text-slate-900 rounded-2xl px-5 py-4 flex items-center justify-between gap-3 shadow-lg shadow-black/10 hover:-translate-y-0.5 transition"
+                    >
+                      <span className="flex items-center gap-3 text-left">
+                        <MapPin className="text-cyan-600 flex-shrink-0" size={20} />
+                        <span className="font-medium">
+                          {bookingDetails.returnLocation || 'Select return location'}
+                        </span>
+                      </span>
+                      <Search size={18} className="text-slate-500 flex-shrink-0" />
+                    </button>
+                  ) : (
+                    <div className="rounded-2xl border border-white/10 bg-white/5 px-5 py-4 text-white/85">
+                      <p className="text-xs uppercase tracking-[0.2em] text-cyan-200 mb-1 font-bold">Return Location</p>
+                      <p className="font-medium">{bookingDetails.returnLocation || bookingDetails.pickupLocation || 'Same as pickup location'}</p>
+                    </div>
+                  )}
+
+                  <div className="rounded-2xl border border-white/10 bg-white/5 px-5 py-4 text-white">
+                    <div className="flex items-center justify-between text-sm">
+                      <span>Pickup fee</span>
+                      <span className="font-bold">MYR {bookingDetails.pickupLocationMeta?.fee ?? bookingDetails.pickupFee ?? 0}</span>
+                    </div>
+                    <div className="flex items-center justify-between text-sm mt-2">
+                      <span>Return fee</span>
+                      <span className="font-bold">MYR {bookingDetails.returnLocationMeta?.fee ?? bookingDetails.returnFee ?? 0}</span>
+                    </div>
+                    <div className="border-t border-white/10 mt-3 pt-3 flex items-center justify-between">
+                      <span className="text-cyan-200 font-bold">Estimated logistics total</span>
+                      <span className="brand text-2xl text-white font-bold">
+                        MYR {(bookingDetails.pickupLocationMeta?.fee ?? bookingDetails.pickupFee ?? 0) + (bookingDetails.returnLocationMeta?.fee ?? bookingDetails.returnFee ?? 0)}
+                      </span>
+                    </div>
+                    {bookingDetails.pickupLocationMeta && (
+                      <p className="text-xs text-white/65 mt-2">
+                        Pickup: {bookingDetails.pickupLocationMeta.distanceLabel}
+                        {bookingDetails.returnLocationMeta ? ` • Return: ${bookingDetails.returnLocationMeta.distanceLabel}` : ''}
+                      </p>
+                    )}
+                  </div>
+
+                  <div className="rounded-2xl border border-cyan-300/15 bg-cyan-400/10 px-5 py-4 text-sm text-cyan-50">
+                    <p className="font-bold uppercase tracking-[0.18em] text-cyan-200 mb-2">Booking Rules</p>
+                    <ul className="space-y-1.5">
+                      <li>No urgent booking.</li>
+                      <li>Minimum rental period is 48 hours.</li>
+                    </ul>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={handleHomepageSearch}
+                    className="w-full rounded-2xl bg-gradient-to-r from-sky-500 to-cyan-500 hover:from-sky-400 hover:to-cyan-400 text-white py-4 font-bold text-lg shadow-xl shadow-cyan-500/30 transition"
+                  >
+                    Search Available Cars
+                  </button>
                 </div>
               </div>
+
+            </div>
+          </div>
+        </section>
+
+        <section className="relative z-20 px-4 -mt-8 sm:-mt-10 pb-12">
+          <div className="max-w-4xl mx-auto">
+            <div className="overflow-hidden">
+              <div
+                className="flex transition-transform duration-500 ease-out"
+                style={{ transform: `translateX(-${heroPromoIndex * 100}%)` }}
+              >
+                {HERO_PROMO_SLIDES.map((slide) => (
+                  <div key={slide.tag} className="min-w-full px-1 sm:px-2">
+                    <div className="rounded-[26px] border border-cyan-100 bg-white p-5 sm:p-7 shadow-[0_20px_60px_rgba(14,116,144,0.14)]">
+                      <div className="flex items-start justify-between gap-3 mb-5">
+                        <div className="min-w-0">
+                          <p className="text-[11px] sm:text-xs uppercase tracking-[0.24em] text-cyan-600 font-bold mb-2">
+                            {slide.tag}
+                          </p>
+                          <h3 className="brand text-xl sm:text-3xl font-bold text-slate-900 leading-tight">
+                            {slide.title}
+                          </h3>
+                        </div>
+                        <div className="shrink-0 rounded-2xl bg-gradient-to-br from-sky-500 to-cyan-500 text-white px-3 py-2.5 sm:px-4 sm:py-3 text-right shadow-lg shadow-cyan-200">
+                          <p className="text-[10px] sm:text-[11px] uppercase tracking-[0.18em] text-cyan-100 font-bold mb-1">
+                            Discount
+                          </p>
+                          <p className="brand text-xl sm:text-2xl font-bold leading-none">{slide.highlight}</p>
+                        </div>
+                      </div>
+
+                      <p className="text-sm sm:text-base text-slate-600 leading-relaxed">
+                        {slide.description}
+                      </p>
+
+                      <div className="mt-5 grid gap-3 sm:grid-cols-2">
+                        <div className="rounded-2xl border border-sky-100 bg-sky-50 px-4 py-4">
+                          <p className="text-[11px] sm:text-xs uppercase tracking-[0.18em] text-sky-700 font-bold mb-1">
+                            How it works
+                          </p>
+                          <p className="text-sm text-slate-700">
+                            Set your dates in the hero form and we will calculate the best tier automatically.
+                          </p>
+                        </div>
+                        <div className="rounded-2xl border border-cyan-100 bg-cyan-50 px-4 py-4">
+                          <p className="text-[11px] sm:text-xs uppercase tracking-[0.18em] text-cyan-700 font-bold mb-1">
+                            Good to know
+                          </p>
+                          <p className="text-sm text-slate-700">
+                            Minimum booking remains 48 hours, and discounts stack into the live rental total instantly.
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <div className="mt-5 flex items-center justify-center gap-2">
+              {HERO_PROMO_SLIDES.map((slide, index) => (
+                <button
+                  key={slide.tag}
+                  type="button"
+                  onClick={() => setHeroPromoIndex(index)}
+                  aria-label={`Show ${slide.tag}`}
+                  className={`h-2.5 rounded-full transition-all ${
+                    heroPromoIndex === index ? 'w-9 bg-cyan-500' : 'w-2.5 bg-cyan-200 hover:bg-cyan-300'
+                  }`}
+                />
+              ))}
             </div>
           </div>
         </section>
@@ -1485,7 +2295,7 @@ export default function App() {
               <div className="hidden md:block absolute top-12 left-[10%] w-[80%] h-1 bg-gradient-to-r from-cyan-100 via-teal-200 to-cyan-100 -translate-y-1/2 z-0"></div>
 
               {[
-                { step: '01', title: 'Select Vehicle', desc: 'Choose your car and rental dates. Enjoy transparent Local & International pricing.', icon: Car },
+                { step: '01', title: 'Plan Your Trip', desc: 'Select your booking type, set pickup and return details, choose your location, and review the automatic delivery fee before browsing available cars.', icon: Car },
                 { step: '02', title: 'Secure Payment', desc: 'Fill your details and pay the rental fee + refundable deposit securely via FPX or Card.', icon: CreditCard },
                 { step: '03', title: 'Digital Verification', desc: 'Upload your ID securely (KYC) and sign the E-Agreement directly from your phone.', icon: ShieldCheck },
                 { step: '04', title: 'Drive & Return', desc: 'Perform your VCR inspection, enjoy the ride, and get an automated deposit refund!', icon: Award }
@@ -1677,10 +2487,8 @@ export default function App() {
     const isTourist = bookingDetails.customerType === 'international';
     const currentDailyPrice = isTourist ? selectedCar.priceTourist : selectedCar.priceLocal;
     const currentDeposit = isTourist ? selectedCar.depositTourist : selectedCar.depositLocal;
-    const activeLocations = isTourist ? TOURIST_LOCATIONS : LOCATIONS;
-    
-    const currentPickupFee = activeLocations.find(l => l.name === bookingDetails.pickupLocation)?.fee || 0;
-    const currentReturnFee = activeLocations.find(l => l.name === bookingDetails.returnLocation)?.fee || 0;
+    const currentPickupFee = bookingDetails.pickupLocationMeta?.fee ?? bookingDetails.pickupFee ?? 0;
+    const currentReturnFee = bookingDetails.returnLocationMeta?.fee ?? bookingDetails.returnFee ?? 0;
 
     const liveRental = getRentalDurationAndCost(bookingDetails.startDate, bookingDetails.endDate, currentDailyPrice);
 
@@ -1723,15 +2531,23 @@ export default function App() {
 
           <div className="w-full p-8 sm:p-10 lg:p-12">
             <form onSubmit={handleBookingSubmit}>
-              <div className="flex flex-col sm:flex-row gap-3 mb-8">
-                <label className={`flex-1 flex justify-center py-4 rounded-xl border-2 cursor-pointer font-bold text-sm transition-all ${bookingDetails.customerType === 'local' ? 'border-cyan-500 bg-cyan-50 text-cyan-700 shadow-sm' : 'border-slate-200 text-slate-500 hover:bg-slate-100'}`}>
-                  <input type="radio" className="hidden" checked={bookingDetails.customerType === 'local'} onChange={() => setBookingDetails({...bookingDetails, customerType: 'local', paymentMethod: 'fpx', pickupLocation: '', returnLocation: ''})} />
-                  Malaysian Citizen
-                </label>
-                <label className={`flex-1 flex justify-center py-4 rounded-xl border-2 cursor-pointer font-bold text-sm transition-all ${bookingDetails.customerType === 'international' ? 'border-cyan-500 bg-cyan-50 text-cyan-700 shadow-sm' : 'border-slate-200 text-slate-500 hover:bg-slate-100'}`}>
-                  <input type="radio" className="hidden" checked={bookingDetails.customerType === 'international'} onChange={() => setBookingDetails({...bookingDetails, customerType: 'international', paymentMethod: 'card', pickupLocation: '', returnLocation: ''})} />
-                  International Tourist
-                </label>
+              <div className="mb-8 rounded-2xl border border-cyan-200 bg-cyan-50 px-5 py-4 flex items-center justify-between gap-4">
+                <div>
+                  <p className="text-xs uppercase tracking-[0.18em] text-cyan-700 font-bold mb-1">Booking Type</p>
+                  <p className="text-base font-bold text-slate-900">
+                    {bookingDetails.customerType === 'international' ? 'International Tourist' : 'Malaysian Citizen'}
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setCurrentView('home');
+                    window.scrollTo({ top: 0, behavior: 'smooth' });
+                  }}
+                  className="text-sm font-bold text-cyan-700 hover:text-cyan-800"
+                >
+                  Change on homepage
+                </button>
               </div>
 
               <div className="bg-slate-50 p-6 sm:p-8 rounded-2xl border border-slate-200 mb-8 shadow-sm">
@@ -1770,6 +2586,43 @@ export default function App() {
                 </div>
               </div>
 
+              {!isTourist && (
+                <div className="bg-slate-50 p-6 sm:p-8 rounded-2xl border border-slate-200 mb-8 shadow-sm">
+                  <div className="mb-5 border-b border-slate-200 pb-3">
+                    <h3 className="font-bold text-slate-800 text-lg flex items-center gap-2"><Wallet size={20} className="text-cyan-600"/> Deposit Refund Account Details</h3>
+                    <p className="text-xs text-slate-500 font-medium mt-1.5">Your refundable deposit will be transferred to this account within 3 to 14 working days after vehicle return.</p>
+                  </div>
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
+                    <div>
+                      <label className="block text-sm font-bold text-slate-700 mb-1.5">Account Holder Name</label>
+                      <input required type="text" placeholder="As per bank account" className="w-full bg-white border border-slate-200 rounded-xl px-4 py-3 focus:ring-2 focus:ring-cyan-500 font-medium" 
+                        value={bookingDetails.accountHolderName} onChange={e => setBookingDetails({...bookingDetails, accountHolderName: e.target.value})} />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-bold text-slate-700 mb-1.5">Account Number</label>
+                      <input required type="text" inputMode="numeric" placeholder="Bank account number" className="w-full bg-white border border-slate-200 rounded-xl px-4 py-3 focus:ring-2 focus:ring-cyan-500 font-medium" 
+                        value={bookingDetails.bankAccount} onChange={e => setBookingDetails({...bookingDetails, bankAccount: e.target.value})} />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-bold text-slate-700 mb-1.5">Bank Name</label>
+                      <select
+                        required
+                        className="w-full bg-white border border-slate-200 rounded-xl px-4 py-3 focus:ring-2 focus:ring-cyan-500 font-medium text-slate-900"
+                        value={bookingDetails.bankName}
+                        onChange={e => setBookingDetails({...bookingDetails, bankName: e.target.value})}
+                      >
+                        <option value="">Select your bank</option>
+                        {MALAYSIAN_BANK_OPTIONS.map((bank) => (
+                          <option key={bank} value={bank}>
+                            {bank}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  </div>
+                </div>
+              )}
+
               <div className="bg-slate-50 p-6 sm:p-8 rounded-2xl border border-slate-200 mb-8 shadow-sm">
                 <div className="mb-5 border-b border-slate-200 pb-3">
                   <div className="flex justify-between items-center">
@@ -1785,18 +2638,87 @@ export default function App() {
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
                   <div>
                     <label className="block text-sm font-bold text-slate-700 mb-1.5">Pickup Date & Time</label>
-                    <input required type="datetime-local" className="w-full bg-white border border-slate-200 rounded-xl px-4 py-3 focus:ring-2 focus:ring-cyan-500 font-medium uppercase" 
-                      value={bookingDetails.startDate} onChange={e => setBookingDetails({...bookingDetails, startDate: e.target.value})} />
+                    <div className="grid sm:grid-cols-[1.3fr_0.9fr] gap-3">
+                      <div className="relative">
+                        <button
+                          type="button"
+                          onClick={() => bookingPickupDateInputRef.current?.showPicker?.()}
+                          className="w-full bg-white border border-slate-200 rounded-xl px-4 py-3 text-slate-900 font-medium flex items-center gap-3 text-left"
+                        >
+                          <Calendar className="text-cyan-600 flex-shrink-0" size={18} />
+                          <span>{formatDateForInputDisplay(getDatePart(bookingDetails.startDate))}</span>
+                        </button>
+                        <input
+                          ref={bookingPickupDateInputRef}
+                          required
+                          type="date"
+                          value={getDatePart(bookingDetails.startDate)}
+                          min={new Date().toISOString().slice(0, 10)}
+                          onChange={e => updateHomepageDateTime('startDate', 'date', e.target.value)}
+                          className="absolute inset-0 opacity-0 pointer-events-none"
+                          tabIndex={-1}
+                        />
+                      </div>
+                      <label className="bg-white border border-slate-200 rounded-xl px-4 py-3 flex items-center gap-3">
+                        <Clock className="text-cyan-600 flex-shrink-0" size={18} />
+                        <select
+                          value={getTimePart(bookingDetails.startDate) || '08:00'}
+                          onChange={e => updateHomepageDateTime('startDate', 'time', e.target.value)}
+                          className="w-full bg-transparent outline-none text-slate-900 font-medium"
+                        >
+                          {TIME_OPTIONS.map((option) => (
+                            <option key={option.value} value={option.value}>
+                              {option.label}
+                            </option>
+                          ))}
+                        </select>
+                      </label>
+                    </div>
                   </div>
                   <div>
                     <label className="block text-sm font-bold text-slate-700 mb-1.5">Return Date & Time</label>
-                    <input required type="datetime-local" className="w-full bg-white border border-slate-200 rounded-xl px-4 py-3 focus:ring-2 focus:ring-cyan-500 font-medium uppercase" 
-                      value={bookingDetails.endDate} onChange={e => setBookingDetails({...bookingDetails, endDate: e.target.value})} />
+                    <div className="grid sm:grid-cols-[1.3fr_0.9fr] gap-3">
+                      <div className="relative">
+                        <button
+                          type="button"
+                          onClick={() => bookingReturnDateInputRef.current?.showPicker?.()}
+                          className="w-full bg-white border border-slate-200 rounded-xl px-4 py-3 text-slate-900 font-medium flex items-center gap-3 text-left"
+                        >
+                          <Calendar className="text-cyan-600 flex-shrink-0" size={18} />
+                          <span>{formatDateForInputDisplay(getDatePart(bookingDetails.endDate))}</span>
+                        </button>
+                        <input
+                          ref={bookingReturnDateInputRef}
+                          required
+                          type="date"
+                          value={getDatePart(bookingDetails.endDate)}
+                          min={getDatePart(bookingDetails.startDate) || new Date().toISOString().slice(0, 10)}
+                          onChange={e => updateHomepageDateTime('endDate', 'date', e.target.value)}
+                          className="absolute inset-0 opacity-0 pointer-events-none"
+                          tabIndex={-1}
+                        />
+                      </div>
+                      <label className="bg-white border border-slate-200 rounded-xl px-4 py-3 flex items-center gap-3">
+                        <Clock className="text-cyan-600 flex-shrink-0" size={18} />
+                        <select
+                          value={getTimePart(bookingDetails.endDate) || '10:00'}
+                          onChange={e => updateHomepageDateTime('endDate', 'time', e.target.value)}
+                          className="w-full bg-transparent outline-none text-slate-900 font-medium"
+                        >
+                          {TIME_OPTIONS.map((option) => (
+                            <option key={option.value} value={option.value}>
+                              {option.label}
+                            </option>
+                          ))}
+                        </select>
+                      </label>
+                    </div>
                   </div>
                   <div className="md:col-span-2">
                     <label className="block text-sm font-bold text-slate-700 mb-1.5">Destination</label>
                     <input required type="text" placeholder="E.g.: Cameron / KLIA" className="w-full bg-white border border-slate-200 rounded-xl px-4 py-3 focus:ring-2 focus:ring-cyan-500 font-medium" 
                       value={bookingDetails.destination} onChange={e => setBookingDetails({...bookingDetails, destination: e.target.value})} />
+                    <p className="text-xs text-slate-500 font-medium mt-1.5">Note: Where you want to go.</p>
                   </div>
                 </div>
               </div>
@@ -1805,25 +2727,45 @@ export default function App() {
                 <div className="mb-5 border-b border-slate-200 pb-3">
                   <h3 className="font-bold text-slate-800 text-lg flex items-center gap-2"><MapPin size={20} className="text-cyan-600"/> {isTourist ? 'Pickup & Return' : 'Delivery & Pickup'}</h3>
                   <p className="text-xs text-slate-500 font-bold mt-1.5 italic">
-                    * Note: {isTourist ? 'Fixed rates apply for tourist transit hubs and city areas.' : 'Delivery distance is calculated from Afwaja Car Rental HQ, Cyberjaya.'}
+* Note: Delivery and return fees are calculated automatically from Afwaja Car Rental HQ, Cyberjaya, at RM2.5 per km.
                   </p>
                 </div>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
                   <div>
                     <label className="block text-sm font-bold text-slate-700 mb-1.5">{isTourist ? 'Pickup Location' : 'Delivery Location'}</label>
-                    <select required className="w-full bg-white border border-slate-200 rounded-xl px-4 py-3 focus:ring-2 focus:ring-cyan-500 font-medium text-slate-700" 
-                      value={bookingDetails.pickupLocation} onChange={e => setBookingDetails({...bookingDetails, pickupLocation: e.target.value})}>
-                      <option value="">Select Location</option>
-                      {activeLocations.map(l => <option key={l.name} value={l.name}>{l.pickupLabel}</option>)}
-                    </select>
+                    <button
+                      type="button"
+                      onClick={() => openLocationPicker('pickup')}
+                      className="w-full bg-white border border-slate-200 rounded-xl px-4 py-3 focus:ring-2 focus:ring-cyan-500 font-medium text-slate-700 text-left flex items-center justify-between gap-3 hover:border-cyan-300 transition"
+                    >
+                      <span className="flex-1">
+                        {bookingDetails.pickupLocation || 'Search pickup location'}
+                      </span>
+                      <Search size={18} className="text-cyan-600 flex-shrink-0" />
+                    </button>
+                    {bookingDetails.pickupLocationMeta && (
+                      <p className="mt-2 text-xs font-semibold text-slate-500">
+                        {bookingDetails.pickupLocationMeta.distanceLabel} · Delivery fee MYR {currentPickupFee}
+                      </p>
+                    )}
                   </div>
                   <div>
                     <label className="block text-sm font-bold text-slate-700 mb-1.5">Return Location</label>
-                    <select required className="w-full bg-white border border-slate-200 rounded-xl px-4 py-3 focus:ring-2 focus:ring-cyan-500 font-medium text-slate-700" 
-                      value={bookingDetails.returnLocation} onChange={e => setBookingDetails({...bookingDetails, returnLocation: e.target.value})}>
-                      <option value="">Select Location</option>
-                      {activeLocations.map(l => <option key={l.name} value={l.name}>{l.returnLabel}</option>)}
-                    </select>
+                    <button
+                      type="button"
+                      onClick={() => openLocationPicker('return')}
+                      className="w-full bg-white border border-slate-200 rounded-xl px-4 py-3 focus:ring-2 focus:ring-cyan-500 font-medium text-slate-700 text-left flex items-center justify-between gap-3 hover:border-cyan-300 transition"
+                    >
+                      <span className="flex-1">
+                        {bookingDetails.returnLocation || 'Search return location'}
+                      </span>
+                      <Search size={18} className="text-cyan-600 flex-shrink-0" />
+                    </button>
+                    {bookingDetails.returnLocationMeta && (
+                      <p className="mt-2 text-xs font-semibold text-slate-500">
+                        {bookingDetails.returnLocationMeta.distanceLabel} · Return fee MYR {currentReturnFee}
+                      </p>
+                    )}
                   </div>
                 </div>
               </div>
@@ -3069,6 +4011,16 @@ export default function App() {
                             )}
                           </div>
                           <p className="font-bold text-cyan-600">{booking.car.name}</p>
+                          <div className="mt-1 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-left">
+                            <p className="text-[10px] uppercase tracking-[0.16em] text-slate-500 font-bold">Refund Details</p>
+                            <p className="text-xs text-slate-700 font-semibold mt-1">
+                              {booking.customer.customerType === 'local' ? 'Online bank transfer' : 'Credit / Debit card reversal'}
+                            </p>
+                            <p className="text-xs text-slate-500 mt-0.5">{getRefundDetailsLabel(booking.customer)}</p>
+                            {booking.customer.customerType === 'local' && booking.customer.accountHolderName && (
+                              <p className="text-xs text-slate-500 mt-0.5">Holder: {booking.customer.accountHolderName}</p>
+                            )}
+                          </div>
                         </div>
                       </td>
                       <td className="px-6 py-4">
@@ -3223,12 +4175,14 @@ export default function App() {
               <li><strong>Early Return:</strong> No refunds will be provided for returning the vehicle earlier than the agreed rental period.</li>
               <li><strong>Late Return:</strong> An extra hour charge of <strong>10% of the daily rate</strong> applies per hour. If the extra charges exceed the daily rate, a full 1-day charge will apply.</li>
               <li><strong>Mileage Limit:</strong> Rentals include a limit of 300 km per day. Excess mileage is charged at RM1 per km.</li>
-              <li><strong>Delivery & Pickup Fees:</strong>
-                <ul className="list-[circle] pl-5 mt-1 space-y-1">
-                  <li><strong>Local Citizens:</strong> Calculated based on distance from our Cyberjaya HQ (Zone A: RM30, Zone B: RM50, Zone C: RM80, KLIA: RM100).</li>
-                  <li><strong>International Tourists:</strong> Fixed rates apply for major transit hubs (KLIA/KLIA2: RM100, KL Sentral/TBS: RM70, KL City Centre: RM100).</li>
-                </ul>
-              </li>
+                  <li><strong>Delivery & Pickup Fees:</strong>
+                    <ul className="list-[circle] pl-5 mt-1 space-y-1">
+                      <li>Delivery and return fees are calculated automatically based on the distance between your selected location and <strong>Afwaja Car Rental HQ, Cyberjaya</strong>.</li>
+                      <li>The current rate is <strong>RM2.5 per km</strong> for each trip.</li>
+                      <li>If you choose a different return location, the return fee will be calculated separately based on the selected drop-off point.</li>
+                      <li>The estimated delivery and return fees will be shown before you proceed with your booking.</li>
+                    </ul>
+                  </li>
             </ul>
           </section>
 
@@ -3488,6 +4442,89 @@ export default function App() {
           </div>
         ))}
       </div>
+
+      {locationModal.open && (
+        <div className="fixed inset-0 z-[110] bg-slate-950/75 backdrop-blur-sm flex items-start justify-center p-4 pt-10 overflow-y-auto">
+          <div className="w-full max-w-2xl rounded-[28px] bg-white shadow-2xl border border-slate-200 overflow-hidden">
+            <div className="bg-slate-950 text-white px-6 py-5 flex items-center justify-between">
+              <div>
+                <p className="text-xs uppercase tracking-[0.24em] text-cyan-300 font-bold">Location Search</p>
+                <h3 className="brand text-2xl font-bold mt-1">
+                  {locationModal.field === 'pickup' ? 'Choose Pickup Location' : 'Choose Return Location'}
+                </h3>
+              </div>
+              <button
+                type="button"
+                onClick={closeLocationPicker}
+                className="w-11 h-11 rounded-full border border-white/15 bg-white/10 flex items-center justify-center hover:bg-white/20 transition"
+              >
+                <X size={20} />
+              </button>
+            </div>
+
+            <div className="p-6 space-y-5">
+              <button
+                type="button"
+                onClick={handleSelectHqLocation}
+                className="w-full rounded-2xl border border-cyan-200 bg-cyan-50 px-5 py-4 text-left hover:border-cyan-400 transition"
+              >
+                <p className="text-xs uppercase tracking-[0.18em] text-cyan-700 font-bold mb-1">Quick Option</p>
+                <p className="font-bold text-slate-900">Use Afwaja Car Rental HQ (Cyberjaya)</p>
+                <p className="text-sm text-slate-500 mt-1">Self pickup / return at HQ · MYR 0</p>
+              </button>
+
+              <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 flex items-center gap-3 focus-within:ring-2 focus-within:ring-cyan-500">
+                <Search size={18} className="text-cyan-600 flex-shrink-0" />
+                <input
+                  type="text"
+                  value={locationQuery}
+                  onChange={(e) => setLocationQuery(e.target.value)}
+                  placeholder="Type address, hotel, airport, or landmark"
+                  className="w-full bg-transparent outline-none text-slate-900 font-medium"
+                />
+              </div>
+
+              <div className="rounded-2xl border border-slate-200 overflow-hidden">
+                <div className="px-4 py-3 bg-slate-50 border-b border-slate-200 flex items-center justify-between">
+                  <p className="text-xs uppercase tracking-[0.18em] text-slate-500 font-bold">Recommended Locations</p>
+                  {locationSearchLoading && <RefreshCw size={16} className="text-cyan-600 animate-spin" />}
+                </div>
+
+                <div className="max-h-[380px] overflow-y-auto">
+                  {locationSearchError ? (
+                    <div className="px-5 py-6 text-sm text-red-600 font-medium">{locationSearchError}</div>
+                  ) : locationSuggestions.length === 0 ? (
+                    <div className="px-5 py-6 text-sm text-slate-500 font-medium">
+                      {locationQuery.trim().length < 3
+                        ? 'Start typing at least 3 characters to see location suggestions.'
+                        : 'No matching locations found. Try a more complete address or landmark.'}
+                    </div>
+                  ) : (
+                    locationSuggestions.map((suggestion, index) => (
+                      <button
+                        key={`${suggestion.place_id || suggestion.description || 'loc'}-${index}`}
+                        type="button"
+                        onClick={() => handleSelectSuggestedLocation(suggestion)}
+                        className="w-full px-5 py-4 text-left border-b border-slate-100 last:border-b-0 hover:bg-cyan-50 transition"
+                      >
+                        <p className="font-bold text-slate-900">
+                          {suggestion.structured_formatting?.main_text || suggestion.description || 'Suggested location'}
+                        </p>
+                        {suggestion.structured_formatting?.secondary_text && (
+                          <p className="text-sm text-slate-500 mt-1">{suggestion.structured_formatting.secondary_text}</p>
+                        )}
+                        <p className="text-sm text-slate-500 mt-1">
+                          Delivery / return fee will be calculated automatically from Cyberjaya HQ.
+                        </p>
+                      </button>
+                    ))
+                  )}
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       <main className="h-full">
         {currentView === 'home' && HomeView()}
