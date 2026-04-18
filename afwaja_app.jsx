@@ -271,7 +271,7 @@ const INITIAL_AGREEMENT_TERMS = [
     bullets: [
       'Only the individual who made the booking is allowed to collect the vehicle.',
       'Required documents include IC/Passport, Driving License, and Utility Bill/Business Card or travel support documents for tourists.',
-      'Renters must inspect the vehicle (VCR) upon collection. Any damages not reported immediately will be considered the renter’s responsibility.',
+      'Renters must inspect the vehicle (VCR) upon collection. Any damages not reported immediately will be considered the renterÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â‚¬Å¾Ã‚Â¢s responsibility.',
     ],
   },
   {
@@ -280,7 +280,7 @@ const INITIAL_AGREEMENT_TERMS = [
       'Malaysian citizens must complete payments via FPX (Online Banking). International tourists must complete payments via Credit/Debit Card.',
       'A security deposit of RM100 to RM400 is required before handover depending on the car category.',
       'Deposits for Malaysian citizens are refunded via online bank transfer within 3 to 14 working days after the vehicle is returned.',
-      'Deposits for international tourists are refunded to the Credit/Debit Card used during booking, subject to the bank’s policy.',
+      'Deposits for international tourists are refunded to the Credit/Debit Card used during booking, subject to the bankÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â‚¬Å¾Ã‚Â¢s policy.',
       'All refunds are subject to the vehicle being returned in good condition and clear of any traffic summons.',
     ],
   },
@@ -578,7 +578,7 @@ const createInitialAgreementPdf = async ({ booking, vcrImages, signatureBase64 }
   INITIAL_AGREEMENT_TERMS.forEach((section) => {
     addWrappedText(section.title, { fontSize: 11, color: '#0f172a', gapAfter: 6 });
     section.bullets.forEach((bullet) => {
-      addWrappedText(`• ${bullet}`, { fontSize: 10, indent: 8, gapAfter: 4 });
+      addWrappedText(`ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â¢ ${bullet}`, { fontSize: 10, indent: 8, gapAfter: 4 });
     });
     y += 4;
   });
@@ -701,8 +701,8 @@ const maskAccountNumber = (value = '') => {
 const getRefundDetailsLabel = (customer = {}) => {
   if (customer.customerType === 'local') {
     const bankName = customer.bankName || 'Bank transfer';
-    const accountNumber = customer.bankAccount ? maskAccountNumber(customer.bankAccount) : 'account pending';
-    return `${bankName} • ${accountNumber}`;
+    const accountNumber = customer.bankAccount || 'account pending';
+    return `${bankName} ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â¢ ${accountNumber}`;
   }
 
   return 'Original payment card';
@@ -939,13 +939,13 @@ export default function App() {
     closeLocationPicker();
   };
 
-  const updateHomepageDateTime = (field, part, value) => {
+  const updateHomepageDateTime = (field, part, value, useFallbackTime = true) => {
     setBookingDetails(prev => {
       const currentValue = field === 'startDate' ? prev.startDate : prev.endDate;
       const nextDate = part === 'date' ? value : getDatePart(currentValue);
-      const fallbackTime = field === 'startDate' ? '08:00' : '10:00';
+      const fallbackTime = useFallbackTime ? (field === 'startDate' ? '08:00' : '10:00') : '';
       const nextTime = part === 'time' ? value : (getTimePart(currentValue) || fallbackTime);
-      const nextValue = nextDate && nextTime ? combineDateAndTime(nextDate, nextTime) : '';
+      const nextValue = nextDate && nextTime ? combineDateAndTime(nextDate, nextTime) : (nextDate || '');
 
       const nextState = {
         ...prev,
@@ -955,8 +955,8 @@ export default function App() {
       if (field === 'startDate' && prev.endDate) {
         const currentEndDate = getDatePart(prev.endDate);
         if (currentEndDate && nextDate && currentEndDate < nextDate) {
-          const currentEndTime = getTimePart(prev.endDate) || '10:00';
-          nextState.endDate = combineDateAndTime(nextDate, currentEndTime);
+          const currentEndTime = getTimePart(prev.endDate) || (useFallbackTime ? '10:00' : '');
+          nextState.endDate = currentEndTime ? combineDateAndTime(nextDate, currentEndTime) : nextDate;
         }
       }
 
@@ -1015,7 +1015,12 @@ export default function App() {
       return;
     }
 
-    if (!bookingDetails.pickupLocation) {
+    if (!getTimePart(bookingDetails.startDate) || !getTimePart(bookingDetails.endDate)) {
+      showNotification('Please choose both pickup and return times first.', 'error');
+      return;
+    }
+
+     {
       showNotification('Please choose your pickup location first.', 'error');
       return;
     }
@@ -1916,9 +1921,9 @@ export default function App() {
   const HomeView = () => {
     const filteredCars = filter === 'all' ? cars : cars.filter(c => c.category === filter);
     const pickupDateValue = getDatePart(bookingDetails.startDate);
-    const pickupTimeValue = getTimePart(bookingDetails.startDate) || '08:00';
+    const pickupTimeValue = getTimePart(bookingDetails.startDate);
     const returnDateValue = getDatePart(bookingDetails.endDate);
-    const returnTimeValue = getTimePart(bookingDetails.endDate) || '10:00';
+    const returnTimeValue = getTimePart(bookingDetails.endDate);
 
     return (
       <div className="animate-fadeIn font-dm pt-20 sm:pt-24">
@@ -2015,7 +2020,7 @@ export default function App() {
                             type="date"
                             value={pickupDateValue}
                             min={new Date().toISOString().slice(0, 10)}
-                            onChange={(e) => updateHomepageDateTime('startDate', 'date', e.target.value)}
+                            onChange={(e) => updateHomepageDateTime('startDate', 'date', e.target.value, false)}
                             className="absolute inset-0 opacity-0 pointer-events-none"
                             tabIndex={-1}
                           />
@@ -2024,9 +2029,10 @@ export default function App() {
                           <Clock className="text-cyan-600 flex-shrink-0" size={20} />
                           <select
                             value={pickupTimeValue}
-                            onChange={(e) => updateHomepageDateTime('startDate', 'time', e.target.value)}
+                            onChange={(e) => updateHomepageDateTime('startDate', 'time', e.target.value, false)}
                             className="w-full bg-transparent outline-none text-slate-900 font-medium"
                           >
+                            <option value="">Select time</option>
                             {TIME_OPTIONS.map((option) => (
                               <option key={option.value} value={option.value}>
                                 {option.label}
@@ -2055,7 +2061,7 @@ export default function App() {
                             type="date"
                             value={returnDateValue}
                             min={pickupDateValue || new Date().toISOString().slice(0, 10)}
-                            onChange={(e) => updateHomepageDateTime('endDate', 'date', e.target.value)}
+                            onChange={(e) => updateHomepageDateTime('endDate', 'date', e.target.value, false)}
                             className="absolute inset-0 opacity-0 pointer-events-none"
                             tabIndex={-1}
                           />
@@ -2064,9 +2070,10 @@ export default function App() {
                           <Clock className="text-cyan-600 flex-shrink-0" size={20} />
                           <select
                             value={returnTimeValue}
-                            onChange={(e) => updateHomepageDateTime('endDate', 'time', e.target.value)}
+                            onChange={(e) => updateHomepageDateTime('endDate', 'time', e.target.value, false)}
                             className="w-full bg-transparent outline-none text-slate-900 font-medium"
                           >
+                            <option value="">Select time</option>
                             {TIME_OPTIONS.map((option) => (
                               <option key={option.value} value={option.value}>
                                 {option.label}
@@ -2139,7 +2146,7 @@ export default function App() {
                     {bookingDetails.pickupLocationMeta && (
                       <p className="text-xs text-white/65 mt-2">
                         Pickup: {bookingDetails.pickupLocationMeta.distanceLabel}
-                        {bookingDetails.returnLocationMeta ? ` • Return: ${bookingDetails.returnLocationMeta.distanceLabel}` : ''}
+                        {bookingDetails.returnLocationMeta ? ` ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â¢ Return: ${bookingDetails.returnLocationMeta.distanceLabel}` : ''}
                       </p>
                     )}
                   </div>
@@ -2254,7 +2261,7 @@ export default function App() {
                     Afwaja Car Rental was established with a singular commitment: to deliver a seamless, transparent, and premium transportation experience for both corporate clients and leisure travelers. We bridge the gap between affordability and reliability, ensuring every journey begins with absolute peace of mind.
                   </p>
                   <p>
-                    Operating from our strategic hub in Cyberjaya, we leverage a dynamic fleet management system—combining our proprietary vehicles with an extensive network of verified strategic partners. This unique hybrid model guarantees unparalleled vehicle availability, flexible delivery options, and highly competitive pricing without any hidden fees.
+                    Operating from our strategic hub in Cyberjaya, we leverage a dynamic fleet management systemÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â€šÂ¬Ã‚Âcombining our proprietary vehicles with an extensive network of verified strategic partners. This unique hybrid model guarantees unparalleled vehicle availability, flexible delivery options, and highly competitive pricing without any hidden fees.
                   </p>
                 </div>
                 <div className="grid sm:grid-cols-2 gap-6 mt-8">
@@ -2328,10 +2335,10 @@ export default function App() {
               
               <div className="inline-flex bg-slate-100 p-1.5 rounded-full border border-slate-200 mb-6 mx-auto">
                  <button onClick={() => setFleetPricingMode('local')} className={`px-6 py-2.5 rounded-full font-bold text-sm sm:text-base transition-all flex items-center gap-2 ${fleetPricingMode === 'local' ? 'bg-white text-cyan-700 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}>
-                   🇲🇾 Malaysian
+                   ÃƒÆ’Ã‚Â°Ãƒâ€¦Ã‚Â¸ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â¡Ãƒâ€šÃ‚Â²ÃƒÆ’Ã‚Â°Ãƒâ€¦Ã‚Â¸ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â¡Ãƒâ€šÃ‚Â¾ Malaysian
                  </button>
                  <button onClick={() => setFleetPricingMode('international')} className={`px-6 py-2.5 rounded-full font-bold text-sm sm:text-base transition-all flex items-center gap-2 ${fleetPricingMode === 'international' ? 'bg-white text-cyan-700 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}>
-                   🌍 International
+                   ÃƒÆ’Ã‚Â°Ãƒâ€¦Ã‚Â¸Ãƒâ€¦Ã¢â‚¬â„¢Ãƒâ€šÃ‚Â International
                  </button>
               </div>
             </div>
@@ -2469,9 +2476,9 @@ export default function App() {
             <div>
               <h4 className="text-white font-bold mb-4 uppercase tracking-wider text-sm">Follow Us</h4>
               <ul className="space-y-3 text-sm">
-                <li><a href="https://instagram.com/carrentalcyber" target="_blank" rel="noopener noreferrer" className="hover:text-cyan-400 transition-colors flex items-center gap-1">Instagram ↗</a></li>
-                <li><a href="https://tiktok.com/@afwajacarrental" target="_blank" rel="noopener noreferrer" className="hover:text-cyan-400 transition-colors flex items-center gap-1">TikTok ↗</a></li>
-                <li><a href="https://facebook.com/afwajatrading" target="_blank" rel="noopener noreferrer" className="hover:text-cyan-400 transition-colors flex items-center gap-1">Facebook ↗</a></li>
+                <li><a href="https://instagram.com/carrentalcyber" target="_blank" rel="noopener noreferrer" className="hover:text-cyan-400 transition-colors flex items-center gap-1">Instagram ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â</a></li>
+                <li><a href="https://tiktok.com/@afwajacarrental" target="_blank" rel="noopener noreferrer" className="hover:text-cyan-400 transition-colors flex items-center gap-1">TikTok ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â</a></li>
+                <li><a href="https://facebook.com/afwajatrading" target="_blank" rel="noopener noreferrer" className="hover:text-cyan-400 transition-colors flex items-center gap-1">Facebook ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â</a></li>
               </ul>
             </div>
           </div>
@@ -2745,7 +2752,7 @@ export default function App() {
                     </button>
                     {bookingDetails.pickupLocationMeta && (
                       <p className="mt-2 text-xs font-semibold text-slate-500">
-                        {bookingDetails.pickupLocationMeta.distanceLabel} · Delivery fee MYR {currentPickupFee}
+                        {bookingDetails.pickupLocationMeta.distanceLabel} ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â· Delivery fee MYR {currentPickupFee}
                       </p>
                     )}
                   </div>
@@ -2763,7 +2770,7 @@ export default function App() {
                     </button>
                     {bookingDetails.returnLocationMeta && (
                       <p className="mt-2 text-xs font-semibold text-slate-500">
-                        {bookingDetails.returnLocationMeta.distanceLabel} · Return fee MYR {currentReturnFee}
+                        {bookingDetails.returnLocationMeta.distanceLabel} ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â· Return fee MYR {currentReturnFee}
                       </p>
                     )}
                   </div>
@@ -3124,7 +3131,7 @@ export default function App() {
               <div className="flex flex-col md:flex-row justify-between mb-8 gap-6">
                 <div>
                   <p className="font-bold text-slate-900 text-xl">{trackedBooking.car.name}</p>
-                  <p className="text-slate-600">{formatDateTime(trackedBooking.customer.startDate)} → {formatDateTime(trackedBooking.customer.endDate)} ({trackedBooking.customer.totalDays} Days {trackedBooking.customer.extraHours > 0 ? `+ ${trackedBooking.customer.extraHours} Hours` : ''})</p>
+                  <p className="text-slate-600">{formatDateTime(trackedBooking.customer.startDate)} ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â ÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢ {formatDateTime(trackedBooking.customer.endDate)} ({trackedBooking.customer.totalDays} Days {trackedBooking.customer.extraHours > 0 ? `+ ${trackedBooking.customer.extraHours} Hours` : ''})</p>
                   <p className="text-slate-600 mt-2 text-sm"><MapPin size={14} className="inline mr-1"/> Pickup: {trackedBooking.customer.pickupLocation}</p>
                   <p className="text-slate-600 mt-1 text-sm"><MapPin size={14} className="inline mr-1"/> Drop-off: {trackedBooking.customer.returnLocation}</p>
                 </div>
@@ -3389,7 +3396,7 @@ export default function App() {
                 <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-3">Rental Details</p>
                 <p className="font-medium text-slate-600 mb-1">Pickup: <span className="font-bold text-slate-900">{formatDateTime(booking.customer.startDate)}</span></p>
                 <p className="font-medium text-slate-600 mb-1">Drop-off: <span className="font-bold text-slate-900">{formatDateTime(booking.customer.endDate)}</span></p>
-                <p className="font-medium text-slate-600 mb-1">Location: <span className="font-bold text-slate-900">{booking.customer.pickupLocation.split(' (')[0]} → {booking.customer.returnLocation.split(' (')[0]}</span></p>
+                <p className="font-medium text-slate-600 mb-1">Location: <span className="font-bold text-slate-900">{booking.customer.pickupLocation.split(' (')[0]} ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â ÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢ {booking.customer.returnLocation.split(' (')[0]}</span></p>
                 <p className="font-medium text-slate-600 mb-2">Dest: <span className="font-bold text-slate-900">{booking.customer.destination}</span></p>
               </div>
             </div>
@@ -4416,9 +4423,9 @@ export default function App() {
             <h4 className="font-bold text-slate-900 text-xl mb-1">Social Media</h4>
             <p className="text-slate-600 mb-3 text-lg">Follow us for latest updates & promos.</p>
             <div className="flex flex-wrap justify-center sm:justify-start gap-4">
-              <a href="https://instagram.com/carrentalcyber" target="_blank" rel="noopener noreferrer" className="bg-slate-50 border border-slate-200 px-4 py-2 rounded-lg brand font-bold text-cyan-600 hover:bg-cyan-50 hover:border-cyan-200 transition-colors">Instagram ↗</a>
-              <a href="https://tiktok.com/@afwajacarrental" target="_blank" rel="noopener noreferrer" className="bg-slate-50 border border-slate-200 px-4 py-2 rounded-lg brand font-bold text-cyan-600 hover:bg-cyan-50 hover:border-cyan-200 transition-colors">TikTok ↗</a>
-              <a href="https://facebook.com/afwajatrading" target="_blank" rel="noopener noreferrer" className="bg-slate-50 border border-slate-200 px-4 py-2 rounded-lg brand font-bold text-cyan-600 hover:bg-cyan-50 hover:border-cyan-200 transition-colors">Facebook ↗</a>
+              <a href="https://instagram.com/carrentalcyber" target="_blank" rel="noopener noreferrer" className="bg-slate-50 border border-slate-200 px-4 py-2 rounded-lg brand font-bold text-cyan-600 hover:bg-cyan-50 hover:border-cyan-200 transition-colors">Instagram ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â</a>
+              <a href="https://tiktok.com/@afwajacarrental" target="_blank" rel="noopener noreferrer" className="bg-slate-50 border border-slate-200 px-4 py-2 rounded-lg brand font-bold text-cyan-600 hover:bg-cyan-50 hover:border-cyan-200 transition-colors">TikTok ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â</a>
+              <a href="https://facebook.com/afwajatrading" target="_blank" rel="noopener noreferrer" className="bg-slate-50 border border-slate-200 px-4 py-2 rounded-lg brand font-bold text-cyan-600 hover:bg-cyan-50 hover:border-cyan-200 transition-colors">Facebook ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â</a>
             </div>
           </div>
         </div>
@@ -4470,7 +4477,7 @@ export default function App() {
               >
                 <p className="text-xs uppercase tracking-[0.18em] text-cyan-700 font-bold mb-1">Quick Option</p>
                 <p className="font-bold text-slate-900">Use Afwaja Car Rental HQ (Cyberjaya)</p>
-                <p className="text-sm text-slate-500 mt-1">Self pickup / return at HQ · MYR 0</p>
+                <p className="text-sm text-slate-500 mt-1">Self pickup / return at HQ ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â· MYR 0</p>
               </button>
 
               <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 flex items-center gap-3 focus-within:ring-2 focus-within:ring-cyan-500">
