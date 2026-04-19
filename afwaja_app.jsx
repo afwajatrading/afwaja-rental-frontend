@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { initializeApp } from 'firebase/app';
 import { getAuth, signInAnonymously, onAuthStateChanged, signInWithCustomToken } from 'firebase/auth';
-import { getFirestore, collection, addDoc, updateDoc, doc, onSnapshot, getDoc, getDocs, query, where } from 'firebase/firestore';
+import { getFirestore, collection, addDoc, updateDoc, setDoc, doc, onSnapshot, getDoc, getDocs, query, where } from 'firebase/firestore';
 import { getStorage, ref, uploadString, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { 
   Car, Calendar, CreditCard, FileText, LayoutDashboard, 
@@ -204,6 +204,57 @@ const HERO_PROMO_SLIDES = [
     highlight: 'CLEAR PROCESS',
   },
 ];
+
+const EMPTY_COUPON_FORM = {
+  code: '',
+  description: '',
+  type: 'percentage',
+  value: '',
+  active: true,
+  validFrom: '',
+  validUntil: '',
+  minimumRentalDays: '',
+  minimumSpend: '',
+  customerType: 'both',
+  applicableScope: 'all',
+  applicableCategory: 'all',
+  applicableCarId: 'all',
+  usageLimit: '',
+  onePerCustomer: false,
+  firstBookingOnly: false,
+};
+
+const EMPTY_PROMO_POPUP_FORM = {
+  badge: '',
+  title: '',
+  subtitle: '',
+  urgencyText: '',
+  couponCode: '',
+  ctaLabel: '',
+  ctaAction: 'copy_coupon',
+  active: true,
+  startDate: '',
+  endDate: '',
+  audience: 'all',
+  theme: 'ocean',
+  priority: '100',
+  dismissible: true,
+};
+
+const EMPTY_SEASONAL_FORM = {
+  name: '',
+  note: '',
+  active: true,
+  startDate: '',
+  endDate: '',
+  customerType: 'both',
+  scope: 'all',
+  category: 'all',
+  carId: 'all',
+  pricingMode: 'markup_percentage',
+  value: '',
+  priority: '100',
+};
 
 // --- DATA KENDARAAN (MOCK DATA) ---
 const INITIAL_CARS = [
@@ -745,6 +796,246 @@ const getGatewayReturnState = () => {
   };
 };
 
+const normalizeCouponCode = (value = '') =>
+  String(value)
+    .toUpperCase()
+    .replace(/[^A-Z0-9_-]/g, '');
+
+const getCouponDocId = (code = '') => normalizeCouponCode(code);
+
+const getCouponCollectionPath = (appIdValue) => ['artifacts', appIdValue, 'public', 'data', 'coupons'];
+
+const getCouponStatus = (coupon) => {
+  const now = new Date();
+  const validFrom = coupon.validFrom ? new Date(`${coupon.validFrom}T00:00:00`) : null;
+  const validUntil = coupon.validUntil ? new Date(`${coupon.validUntil}T23:59:59`) : null;
+  const usageLimit = Number(coupon.usageLimit || 0);
+  const usedCount = Number(coupon.usedCount || 0);
+
+  if (!coupon.active) return { label: 'Disabled', tone: 'slate' };
+  if (validFrom && validFrom > now) return { label: 'Scheduled', tone: 'blue' };
+  if (validUntil && validUntil < now) return { label: 'Expired', tone: 'red' };
+  if (usageLimit > 0 && usedCount >= usageLimit) return { label: 'Usage Limit Reached', tone: 'amber' };
+  return { label: 'Active', tone: 'emerald' };
+};
+
+const getCouponStatusClass = (tone) => {
+  switch (tone) {
+    case 'emerald':
+      return 'bg-emerald-100 text-emerald-800 border border-emerald-200';
+    case 'blue':
+      return 'bg-blue-100 text-blue-800 border border-blue-200';
+    case 'amber':
+      return 'bg-amber-100 text-amber-800 border border-amber-200';
+    case 'red':
+      return 'bg-red-100 text-red-800 border border-red-200';
+    default:
+      return 'bg-slate-100 text-slate-700 border border-slate-200';
+  }
+};
+
+const summarizeCouponValue = (coupon) =>
+  coupon.type === 'fixed_amount'
+    ? `MYR ${Number(coupon.value || 0)} OFF`
+    : `${Number(coupon.value || 0)}% OFF`;
+
+const getPromoPopupCollectionPath = (appIdValue) => ['artifacts', appIdValue, 'public', 'data', 'promoPopups'];
+
+const getPromoPopupStatus = (popup) => {
+  const now = new Date();
+  const startDate = popup.startDate ? new Date(`${popup.startDate}T00:00:00`) : null;
+  const endDate = popup.endDate ? new Date(`${popup.endDate}T23:59:59`) : null;
+
+  if (!popup.active) return { label: 'Disabled', tone: 'slate' };
+  if (startDate && startDate > now) return { label: 'Scheduled', tone: 'blue' };
+  if (endDate && endDate < now) return { label: 'Expired', tone: 'red' };
+  return { label: 'Active', tone: 'emerald' };
+};
+
+const getPromoPopupThemeClasses = (theme = 'ocean') => {
+  switch (theme) {
+    case 'sunset':
+      return {
+        shell: 'border-orange-200/80 bg-white/95 shadow-[0_30px_70px_rgba(124,45,18,0.18)]',
+        hero: 'bg-gradient-to-r from-orange-500 via-rose-500 to-pink-500',
+        badgeText: 'text-orange-100',
+        codeWrap: 'border-orange-200 bg-orange-50',
+        codeText: 'text-orange-900',
+        chip: 'bg-white text-orange-700',
+      };
+    case 'midnight':
+      return {
+        shell: 'border-slate-700/70 bg-slate-950/95 shadow-[0_30px_70px_rgba(15,23,42,0.45)]',
+        hero: 'bg-gradient-to-r from-slate-900 via-slate-800 to-cyan-700',
+        badgeText: 'text-cyan-100',
+        codeWrap: 'border-slate-700 bg-slate-900/80',
+        codeText: 'text-cyan-100',
+        chip: 'bg-white/10 text-cyan-100',
+      };
+    default:
+      return {
+        shell: 'border-cyan-200/80 bg-white/95 shadow-[0_30px_70px_rgba(8,47,73,0.22)]',
+        hero: 'bg-gradient-to-r from-sky-500 via-cyan-500 to-teal-500',
+        badgeText: 'text-cyan-100',
+        codeWrap: 'border-emerald-200 bg-emerald-50',
+        codeText: 'text-emerald-900',
+        chip: 'bg-white text-emerald-700',
+      };
+  }
+};
+
+const getPromoPopupAudienceLabel = (audience = 'all') => {
+  switch (audience) {
+    case 'local':
+      return 'Local only';
+    case 'international':
+      return 'Tourist only';
+    default:
+      return 'All visitors';
+  }
+};
+
+const getSeasonalCollectionPath = (appIdValue) => ['artifacts', appIdValue, 'public', 'data', 'seasonalPricing'];
+
+const getSeasonalPricingStatus = (season) => {
+  const now = new Date();
+  const startDate = season.startDate ? new Date(`${season.startDate}T00:00:00`) : null;
+  const endDate = season.endDate ? new Date(`${season.endDate}T23:59:59`) : null;
+
+  if (!season.active) return { label: 'Disabled', tone: 'slate' };
+  if (startDate && startDate > now) return { label: 'Scheduled', tone: 'blue' };
+  if (endDate && endDate < now) return { label: 'Expired', tone: 'red' };
+  return { label: 'Active', tone: 'emerald' };
+};
+
+const getSeasonalScopeLabel = (season) => {
+  if (season.scope === 'category') return `Category: ${season.category}`;
+  if (season.scope === 'car') return `Vehicle ID: ${season.carId}`;
+  return 'All vehicles';
+};
+
+const summarizeSeasonalAdjustment = (season) => {
+  switch (season.pricingMode) {
+    case 'override_price':
+      return `Override to MYR ${Number(season.value || 0)}/day`;
+    case 'markdown_percentage':
+      return `${Number(season.value || 0)}% discount`;
+    case 'fixed_adjustment':
+      return `${Number(season.value || 0) >= 0 ? '+' : '-'}MYR ${Math.abs(Number(season.value || 0))}/day`;
+    default:
+      return `${Number(season.value || 0)}% markup`;
+  }
+};
+
+const getBaseDailyPriceForCustomerType = (car, customerType) =>
+  customerType === 'international' ? car.priceTourist : car.priceLocal;
+
+const getSeasonScopeRank = (scope = 'all') => {
+  if (scope === 'car') return 3;
+  if (scope === 'category') return 2;
+  return 1;
+};
+
+const bookingOverlapsSeason = (season, startDate, endDate) => {
+  if (!startDate || !endDate) return false;
+  const bookingStart = new Date(startDate);
+  const bookingEnd = new Date(endDate);
+  const seasonStart = season.startDate ? new Date(`${season.startDate}T00:00:00`) : null;
+  const seasonEnd = season.endDate ? new Date(`${season.endDate}T23:59:59`) : null;
+
+  if (Number.isNaN(bookingStart.getTime()) || Number.isNaN(bookingEnd.getTime())) return false;
+  if (seasonStart && bookingEnd < seasonStart) return false;
+  if (seasonEnd && bookingStart > seasonEnd) return false;
+  return true;
+};
+
+const emptySeasonalPricing = () => ({
+  seasonalDocId: '',
+  name: '',
+  note: '',
+  pricingMode: '',
+  value: 0,
+  priority: 0,
+  originalBaseRate: 0,
+  adjustedBaseRate: 0,
+});
+
+const getSeasonalPricingOutcome = (seasonalPricings, {
+  car,
+  customerType,
+  startDate,
+  endDate,
+  baseDailyRate,
+}) => {
+  if (!car || !startDate || !endDate) {
+    return { adjustedBaseRate: baseDailyRate, seasonalPricing: emptySeasonalPricing() };
+  }
+
+  const matchedSeason = [...seasonalPricings]
+    .filter((season) => {
+      if (!season.active) return false;
+      if (!bookingOverlapsSeason(season, startDate, endDate)) return false;
+      if (season.customerType && season.customerType !== 'both' && season.customerType !== customerType) return false;
+      if (season.scope === 'category' && season.category && season.category !== 'all' && season.category !== car.category) return false;
+      if (season.scope === 'car' && season.carId && season.carId !== 'all' && String(season.carId) !== String(car.id)) return false;
+      return true;
+    })
+    .sort((a, b) => {
+      const priorityDiff = Number(b.priority || 0) - Number(a.priority || 0);
+      if (priorityDiff !== 0) return priorityDiff;
+      const scopeDiff = getSeasonScopeRank(b.scope) - getSeasonScopeRank(a.scope);
+      if (scopeDiff !== 0) return scopeDiff;
+      return new Date(b.updatedAt || b.createdAt || 0) - new Date(a.updatedAt || a.createdAt || 0);
+    })[0];
+
+  if (!matchedSeason) {
+    return { adjustedBaseRate: baseDailyRate, seasonalPricing: emptySeasonalPricing() };
+  }
+
+  const seasonValue = Number(matchedSeason.value || 0);
+  let adjustedBaseRate = Number(baseDailyRate || 0);
+
+  switch (matchedSeason.pricingMode) {
+    case 'override_price':
+      adjustedBaseRate = Math.max(0, Math.round(seasonValue));
+      break;
+    case 'markdown_percentage':
+      adjustedBaseRate = Math.max(0, Math.round(baseDailyRate * (1 - seasonValue / 100)));
+      break;
+    case 'fixed_adjustment':
+      adjustedBaseRate = Math.max(0, Math.round(baseDailyRate + seasonValue));
+      break;
+    default:
+      adjustedBaseRate = Math.max(0, Math.round(baseDailyRate * (1 + seasonValue / 100)));
+      break;
+  }
+
+  return {
+    adjustedBaseRate,
+    seasonalPricing: {
+      seasonalDocId: matchedSeason.docId || '',
+      name: matchedSeason.name || '',
+      note: matchedSeason.note || '',
+      pricingMode: matchedSeason.pricingMode || 'markup_percentage',
+      value: seasonValue,
+      priority: Number(matchedSeason.priority || 0),
+      originalBaseRate: Number(baseDailyRate || 0),
+      adjustedBaseRate,
+    },
+  };
+};
+
+const emptyAppliedCoupon = () => ({
+  code: '',
+  description: '',
+  type: '',
+  value: 0,
+  discountAmount: 0,
+  originalRentalTotal: 0,
+  finalRentalTotal: 0,
+  couponDocId: '',
+});
+
 export default function App() {
   // ==========================================
   // STATE UTAMA APP
@@ -757,6 +1048,9 @@ export default function App() {
   const [adminPin, setAdminPin] = useState('');
   const [cars, setCars] = useState(INITIAL_CARS);
   const [bookings, setBookings] = useState([]);
+  const [coupons, setCoupons] = useState([]);
+  const [promoPopups, setPromoPopups] = useState([]);
+  const [seasonalPricings, setSeasonalPricings] = useState([]);
   const [filter, setFilter] = useState('all');
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [fleetPricingMode, setFleetPricingMode] = useState('local');
@@ -781,10 +1075,13 @@ export default function App() {
     totalDays: 0,
     extraHours: 0,
     extraHoursFee: 0,
+    rentalSubtotal: 0,
     totalPrice: 0,
     appliedDailyRate: 0,
     discountTier: 'Normal',
     discountPercentage: 0,
+    seasonalPricing: emptySeasonalPricing(),
+    coupon: emptyAppliedCoupon(),
     deposit: 0,
     grandTotal: 0,
     customerType: 'local',
@@ -820,6 +1117,18 @@ export default function App() {
     pickupDateTo: '',
     supplier: 'all',
   });
+  const [couponInput, setCouponInput] = useState('');
+  const [couponFeedback, setCouponFeedback] = useState({ type: '', message: '' });
+  const [couponModalOpen, setCouponModalOpen] = useState(false);
+  const [editingCoupon, setEditingCoupon] = useState(null);
+  const [couponForm, setCouponForm] = useState(EMPTY_COUPON_FORM);
+  const [seasonalModalOpen, setSeasonalModalOpen] = useState(false);
+  const [editingSeasonalPricing, setEditingSeasonalPricing] = useState(null);
+  const [seasonalForm, setSeasonalForm] = useState(EMPTY_SEASONAL_FORM);
+  const [promoPopupModalOpen, setPromoPopupModalOpen] = useState(false);
+  const [editingPromoPopup, setEditingPromoPopup] = useState(null);
+  const [promoPopupForm, setPromoPopupForm] = useState(EMPTY_PROMO_POPUP_FORM);
+  const [showPromoPopup, setShowPromoPopup] = useState(false);
   const [locationModal, setLocationModal] = useState({ open: false, field: 'pickup' });
   const [locationQuery, setLocationQuery] = useState('');
   const [locationSuggestions, setLocationSuggestions] = useState([]);
@@ -838,6 +1147,26 @@ export default function App() {
   const [readingDoc, setReadingDoc] = useState(null);
 
   const trackedBooking = searchTrackId ? bookings.find(b => b.id === searchTrackId) : null;
+  const activePromoPopup = [...promoPopups]
+    .filter((popup) => {
+      const popupStatus = getPromoPopupStatus(popup);
+      const audienceMatch =
+        popup.audience === 'all' ||
+        (popup.audience === 'local' && fleetPricingMode === 'local') ||
+        (popup.audience === 'international' && fleetPricingMode === 'international');
+      return popupStatus.label === 'Active' && audienceMatch;
+    })
+    .sort((a, b) => {
+      const priorityDiff = Number(b.priority || 0) - Number(a.priority || 0);
+      if (priorityDiff !== 0) return priorityDiff;
+      return new Date(b.updatedAt || b.createdAt || 0) - new Date(a.updatedAt || a.createdAt || 0);
+    })[0] || null;
+  const activePromoPopupCoupon = activePromoPopup?.couponCode
+    ? coupons.find((coupon) => normalizeCouponCode(coupon.code) === normalizeCouponCode(activePromoPopup.couponCode))
+    : null;
+  const promoPopupDismissKey = activePromoPopup
+    ? `afwaja:promo-popup:${activePromoPopup.docId}:${activePromoPopup.updatedAt || activePromoPopup.createdAt || ''}`
+    : '';
 
   const getDateKey = (value) => {
     if (!value) return '';
@@ -863,6 +1192,210 @@ export default function App() {
     setTimeout(() => {
       setNotifications(prev => prev.filter(n => n.id !== id));
     }, 5000); 
+  };
+
+  const calculateCouponOutcome = (coupon, {
+    rentalTotal,
+    totalDays,
+    customerType,
+    car,
+    customerEmail,
+  }) => {
+    if (!coupon) {
+      return { valid: false, message: 'Coupon not found.' };
+    }
+
+    const now = new Date();
+    const validFrom = coupon.validFrom ? new Date(`${coupon.validFrom}T00:00:00`) : null;
+    const validUntil = coupon.validUntil ? new Date(`${coupon.validUntil}T23:59:59`) : null;
+    const usageLimit = Number(coupon.usageLimit || 0);
+    const usedCount = Number(coupon.usedCount || 0);
+    const minimumRentalDays = Number(coupon.minimumRentalDays || 0);
+    const minimumSpend = Number(coupon.minimumSpend || 0);
+    const couponValue = Number(coupon.value || 0);
+    const emailKey = String(customerEmail || '').trim().toLowerCase();
+
+    if (!coupon.active) {
+      return { valid: false, message: 'This coupon is currently disabled.' };
+    }
+
+    if (validFrom && validFrom > now) {
+      return { valid: false, message: `This coupon is only valid from ${formatDateForInputDisplay(coupon.validFrom)}.` };
+    }
+
+    if (validUntil && validUntil < now) {
+      return { valid: false, message: 'This coupon has expired.' };
+    }
+
+    if (usageLimit > 0 && usedCount >= usageLimit) {
+      return { valid: false, message: 'This coupon has reached its usage limit.' };
+    }
+
+    if (coupon.customerType && coupon.customerType !== 'both' && coupon.customerType !== customerType) {
+      return { valid: false, message: 'This coupon is not applicable for the selected customer type.' };
+    }
+
+    if (minimumRentalDays > 0 && Number(totalDays || 0) < minimumRentalDays) {
+      return { valid: false, message: `This coupon requires a minimum rental of ${minimumRentalDays} days.` };
+    }
+
+    if (minimumSpend > 0 && Number(rentalTotal || 0) < minimumSpend) {
+      return { valid: false, message: `This coupon requires a rental subtotal of at least MYR ${minimumSpend}.` };
+    }
+
+    if (coupon.applicableScope === 'category' && coupon.applicableCategory && coupon.applicableCategory !== 'all' && coupon.applicableCategory !== car?.category) {
+      return { valid: false, message: 'This coupon is not valid for the selected vehicle category.' };
+    }
+
+    if (coupon.applicableScope === 'car' && coupon.applicableCarId && coupon.applicableCarId !== 'all' && String(coupon.applicableCarId) !== String(car?.id)) {
+      return { valid: false, message: 'This coupon is not valid for the selected vehicle.' };
+    }
+
+    if ((coupon.onePerCustomer || coupon.firstBookingOnly) && !emailKey) {
+      return { valid: false, message: 'Please enter your email address before applying this coupon.' };
+    }
+
+    const successfulCustomerBookings = bookings.filter((booking) => {
+      const bookingEmail = String(booking.customer?.email || '').trim().toLowerCase();
+      return bookingEmail && bookingEmail === emailKey && booking.payment?.status === 'success';
+    });
+
+    if (coupon.firstBookingOnly && successfulCustomerBookings.length > 0) {
+      return { valid: false, message: 'This coupon is only valid for first-time customers.' };
+    }
+
+    if (coupon.onePerCustomer) {
+      const alreadyUsed = successfulCustomerBookings.some(
+        (booking) => normalizeCouponCode(booking.customer?.coupon?.code) === normalizeCouponCode(coupon.code)
+      );
+      if (alreadyUsed) {
+        return { valid: false, message: 'This coupon has already been used with this email address.' };
+      }
+    }
+
+    let discountAmount = 0;
+    if (coupon.type === 'fixed_amount') {
+      discountAmount = Math.min(Number(rentalTotal || 0), couponValue);
+    } else {
+      discountAmount = Math.round(Number(rentalTotal || 0) * (couponValue / 100));
+    }
+
+    if (discountAmount <= 0) {
+      return { valid: false, message: 'This coupon does not produce a valid discount for the current booking.' };
+    }
+
+    return {
+      valid: true,
+      discountAmount,
+      finalRentalTotal: Math.max(0, Number(rentalTotal || 0) - discountAmount),
+      summary: {
+        code: normalizeCouponCode(coupon.code),
+        description: coupon.description || '',
+        type: coupon.type,
+        value: couponValue,
+        discountAmount,
+        originalRentalTotal: Number(rentalTotal || 0),
+        finalRentalTotal: Math.max(0, Number(rentalTotal || 0) - discountAmount),
+        couponDocId: coupon.docId || getCouponDocId(coupon.code),
+      },
+    };
+  };
+
+  const resetCouponState = () => {
+    setCouponInput('');
+    setCouponFeedback({ type: '', message: '' });
+    return emptyAppliedCoupon();
+  };
+
+  const upsertBookingCoupon = (couponSummary) => {
+    setBookingDetails((prev) => ({ ...prev, coupon: couponSummary }));
+  };
+
+  const applyCouponCode = (rawCode) => {
+    if (!selectedCar) {
+      setCouponFeedback({ type: 'error', message: 'Please choose a vehicle first.' });
+      return false;
+    }
+
+    const couponCode = normalizeCouponCode(rawCode || couponInput);
+    if (!couponCode) {
+      setCouponFeedback({ type: 'error', message: 'Please enter a coupon code.' });
+      return false;
+    }
+
+    const isTourist = bookingDetails.customerType === 'international';
+    const baseDailyPrice = isTourist ? selectedCar.priceTourist : selectedCar.priceLocal;
+    const { adjustedBaseRate } = getSeasonalPricingOutcome(seasonalPricings, {
+      car: selectedCar,
+      customerType: bookingDetails.customerType,
+      startDate: bookingDetails.startDate,
+      endDate: bookingDetails.endDate,
+      baseDailyRate,
+    });
+    const liveRental = getRentalDurationAndCost(bookingDetails.startDate, bookingDetails.endDate, adjustedBaseRate);
+
+    if (liveRental.totalHours < 48) {
+      setCouponFeedback({ type: 'error', message: 'Coupons can only be applied after a valid 48-hour rental is selected.' });
+      return false;
+    }
+
+    const matchedCoupon = coupons.find((coupon) => normalizeCouponCode(coupon.code) === couponCode);
+    const outcome = calculateCouponOutcome(matchedCoupon, {
+      rentalTotal: liveRental.rentalTotal,
+      totalDays: liveRental.days,
+      customerType: bookingDetails.customerType,
+      car: selectedCar,
+      customerEmail: bookingDetails.email,
+    });
+
+    if (!outcome.valid) {
+      upsertBookingCoupon(emptyAppliedCoupon());
+      setCouponFeedback({ type: 'error', message: outcome.message });
+      return false;
+    }
+
+    upsertBookingCoupon(outcome.summary);
+    setCouponInput(outcome.summary.code);
+    setCouponFeedback({
+      type: 'success',
+      message: `${outcome.summary.code} applied successfully. You saved MYR ${outcome.summary.discountAmount}.`,
+    });
+    return true;
+  };
+
+  const removeCouponCode = () => {
+    upsertBookingCoupon(emptyAppliedCoupon());
+    setCouponInput('');
+    setCouponFeedback({ type: '', message: '' });
+  };
+
+  const openCreateCouponModal = () => {
+    setEditingCoupon(null);
+    setCouponForm(EMPTY_COUPON_FORM);
+    setCouponModalOpen(true);
+  };
+
+  const openEditCouponModal = (coupon) => {
+    setEditingCoupon(coupon);
+    setCouponForm({
+      code: coupon.code || '',
+      description: coupon.description || '',
+      type: coupon.type || 'percentage',
+      value: coupon.value ?? '',
+      active: coupon.active !== false,
+      validFrom: coupon.validFrom || '',
+      validUntil: coupon.validUntil || '',
+      minimumRentalDays: coupon.minimumRentalDays ?? '',
+      minimumSpend: coupon.minimumSpend ?? '',
+      customerType: coupon.customerType || 'both',
+      applicableScope: coupon.applicableScope || 'all',
+      applicableCategory: coupon.applicableCategory || 'all',
+      applicableCarId: coupon.applicableCarId || 'all',
+      usageLimit: coupon.usageLimit ?? '',
+      onePerCustomer: Boolean(coupon.onePerCustomer),
+      firstBookingOnly: Boolean(coupon.firstBookingOnly),
+    });
+    setCouponModalOpen(true);
   };
 
   const openLocationPicker = (field) => {
@@ -1225,6 +1758,117 @@ export default function App() {
   }, [user]);
 
   useEffect(() => {
+    if (!user) return;
+    const couponsRef = collection(db, ...getCouponCollectionPath(appId));
+    const unsubscribe = onSnapshot(couponsRef, (snapshot) => {
+      const fetchedCoupons = snapshot.docs.map((couponDoc) => ({
+        docId: couponDoc.id,
+        ...couponDoc.data(),
+      }));
+      fetchedCoupons.sort((a, b) => normalizeCouponCode(a.code).localeCompare(normalizeCouponCode(b.code)));
+      setCoupons(fetchedCoupons);
+    }, (error) => {
+      console.error('Error fetching coupons:', error);
+    });
+    return () => unsubscribe();
+  }, [user]);
+
+  useEffect(() => {
+    if (!user) return;
+    const seasonalRef = collection(db, ...getSeasonalCollectionPath(appId));
+    const unsubscribe = onSnapshot(seasonalRef, (snapshot) => {
+      const fetchedSeasons = snapshot.docs.map((seasonDoc) => ({
+        docId: seasonDoc.id,
+        ...seasonDoc.data(),
+      }));
+      fetchedSeasons.sort((a, b) => {
+        const priorityDiff = Number(b.priority || 0) - Number(a.priority || 0);
+        if (priorityDiff !== 0) return priorityDiff;
+        return new Date(b.updatedAt || b.createdAt || 0) - new Date(a.updatedAt || a.createdAt || 0);
+      });
+      setSeasonalPricings(fetchedSeasons);
+    }, (error) => {
+      console.error('Error fetching seasonal pricing:', error);
+    });
+    return () => unsubscribe();
+  }, [user]);
+
+  useEffect(() => {
+    if (!user) return;
+    const promoPopupsRef = collection(db, ...getPromoPopupCollectionPath(appId));
+    const unsubscribe = onSnapshot(promoPopupsRef, (snapshot) => {
+      const fetchedPromoPopups = snapshot.docs.map((promoDoc) => ({
+        docId: promoDoc.id,
+        ...promoDoc.data(),
+      }));
+      fetchedPromoPopups.sort((a, b) => {
+        const priorityDiff = Number(b.priority || 0) - Number(a.priority || 0);
+        if (priorityDiff !== 0) return priorityDiff;
+        return new Date(b.updatedAt || b.createdAt || 0) - new Date(a.updatedAt || a.createdAt || 0);
+      });
+      setPromoPopups(fetchedPromoPopups);
+    }, (error) => {
+      console.error('Error fetching promo popups:', error);
+    });
+    return () => unsubscribe();
+  }, [user]);
+
+  useEffect(() => {
+    if (!bookingDetails.coupon?.code || !selectedCar) return;
+
+    const isTourist = bookingDetails.customerType === 'international';
+    const baseDailyPrice = isTourist ? selectedCar.priceTourist : selectedCar.priceLocal;
+    const { adjustedBaseRate } = getSeasonalPricingOutcome(seasonalPricings, {
+      car: selectedCar,
+      customerType: bookingDetails.customerType,
+      startDate: bookingDetails.startDate,
+      endDate: bookingDetails.endDate,
+      baseDailyRate,
+    });
+    const liveRental = getRentalDurationAndCost(bookingDetails.startDate, bookingDetails.endDate, adjustedBaseRate);
+    const matchedCoupon = coupons.find(
+      (coupon) => normalizeCouponCode(coupon.code) === normalizeCouponCode(bookingDetails.coupon.code)
+    );
+
+    const outcome = calculateCouponOutcome(matchedCoupon, {
+      rentalTotal: liveRental.rentalTotal,
+      totalDays: liveRental.days,
+      customerType: bookingDetails.customerType,
+      car: selectedCar,
+      customerEmail: bookingDetails.email,
+    });
+
+    if (!outcome.valid) {
+      upsertBookingCoupon(emptyAppliedCoupon());
+      if (couponInput) {
+        setCouponFeedback({ type: 'error', message: outcome.message });
+      }
+      return;
+    }
+
+    const currentDiscount = Number(bookingDetails.coupon.discountAmount || 0);
+    if (
+      currentDiscount !== outcome.summary.discountAmount ||
+      Number(bookingDetails.coupon.originalRentalTotal || 0) !== outcome.summary.originalRentalTotal
+    ) {
+      upsertBookingCoupon(outcome.summary);
+      setCouponFeedback({
+        type: 'success',
+        message: `${outcome.summary.code} applied successfully. You saved MYR ${outcome.summary.discountAmount}.`,
+      });
+    }
+  }, [
+    coupons,
+    seasonalPricings,
+    selectedCar,
+    bookingDetails.startDate,
+    bookingDetails.endDate,
+    bookingDetails.customerType,
+    bookingDetails.email,
+    bookingDetails.coupon?.code,
+  ]);
+
+  useEffect(() => {
     if (sigCanvas.current && trackedBooking?.documents?.status === 'verified' && trackedBooking?.vcr?.status !== 'completed') {
        const canvas = sigCanvas.current;
        canvas.width = canvas.offsetWidth;
@@ -1244,6 +1888,34 @@ export default function App() {
 
     return () => window.clearInterval(intervalId);
   }, []);
+
+  useEffect(() => {
+    if (currentView !== 'home') {
+      setShowPromoPopup(false);
+      return;
+    }
+
+    if (!activePromoPopup || typeof window === 'undefined') {
+      setShowPromoPopup(false);
+      return;
+    }
+
+    try {
+      const isLocalPreview = ['localhost', '127.0.0.1'].includes(window.location.hostname);
+      if (!isLocalPreview && promoPopupDismissKey && window.localStorage.getItem(promoPopupDismissKey) === 'dismissed') {
+        setShowPromoPopup(false);
+        return;
+      }
+    } catch (error) {
+      console.error('Unable to read popup dismissal state:', error);
+    }
+
+    const timeoutId = window.setTimeout(() => {
+      setShowPromoPopup(true);
+    }, 1400);
+
+    return () => window.clearTimeout(timeoutId);
+  }, [currentView, activePromoPopup?.docId, promoPopupDismissKey, fleetPricingMode]);
 
   useEffect(() => {
     if (!locationModal.open) return;
@@ -1332,6 +2004,7 @@ export default function App() {
   // --- HANDLERS ---
   const handleBookNow = (car) => {
     setSelectedCar(car);
+    resetCouponState();
     setBookingDetails(prev => ({
       ...prev,
       name: '',
@@ -1343,10 +2016,13 @@ export default function App() {
       totalDays: 0,
       extraHours: 0,
       extraHoursFee: 0,
+      rentalSubtotal: 0,
       totalPrice: 0,
       appliedDailyRate: 0,
       discountTier: 'Normal',
       discountPercentage: 0,
+      seasonalPricing: emptySeasonalPricing(),
+      coupon: emptyAppliedCoupon(),
       deposit: 0,
       grandTotal: 0,
       customerType: fleetPricingMode,
@@ -1362,8 +2038,15 @@ export default function App() {
     const isTourist = bookingDetails.customerType === 'international';
     const phoneValue = bookingDetails.phone.trim();
     const baseDailyPrice = isTourist ? selectedCar.priceTourist : selectedCar.priceLocal;
+    const { adjustedBaseRate, seasonalPricing } = getSeasonalPricingOutcome(seasonalPricings, {
+      car: selectedCar,
+      customerType: bookingDetails.customerType,
+      startDate: bookingDetails.startDate,
+      endDate: bookingDetails.endDate,
+      baseDailyRate,
+    });
     
-    const { days, extraHours, extraHoursFee, rentalTotal, totalHours, appliedDailyRate, discountTier, discountPercentage } = getRentalDurationAndCost(bookingDetails.startDate, bookingDetails.endDate, baseDailyPrice);
+    const { days, extraHours, extraHoursFee, rentalTotal, totalHours, appliedDailyRate, discountTier, discountPercentage } = getRentalDurationAndCost(bookingDetails.startDate, bookingDetails.endDate, adjustedBaseRate);
     
     if (isTourist && !/^\+\d{7,15}$/.test(phoneValue.replace(/\s+/g, ''))) {
       showNotification('Please enter a valid WhatsApp number with country code.', 'error');
@@ -1389,14 +2072,55 @@ export default function App() {
       return;
     }
 
+    let appliedCoupon = emptyAppliedCoupon();
+    if (couponInput || bookingDetails.coupon?.code) {
+      const couponApplied = applyCouponCode(couponInput || bookingDetails.coupon?.code);
+      if (!couponApplied) {
+        return;
+      }
+
+      const matchedCoupon = coupons.find(
+        (coupon) => normalizeCouponCode(coupon.code) === normalizeCouponCode(couponInput || bookingDetails.coupon?.code)
+      );
+      const couponOutcome = calculateCouponOutcome(matchedCoupon, {
+        rentalTotal,
+        totalDays: days,
+        customerType: bookingDetails.customerType,
+        car: selectedCar,
+        customerEmail: bookingDetails.email,
+      });
+
+      if (!couponOutcome.valid) {
+        setCouponFeedback({ type: 'error', message: couponOutcome.message });
+        return;
+      }
+
+      appliedCoupon = couponOutcome.summary;
+    }
+
     const pickupFee = bookingDetails.pickupLocationMeta?.fee ?? bookingDetails.pickupFee ?? 0;
     const returnFee = bookingDetails.returnLocationMeta?.fee ?? bookingDetails.returnFee ?? 0;
     
     const deposit = isTourist ? selectedCar.depositTourist : selectedCar.depositLocal;
-    const grandTotal = rentalTotal + pickupFee + returnFee + deposit;
+    const finalRentalTotal = appliedCoupon.discountAmount > 0 ? appliedCoupon.finalRentalTotal : rentalTotal;
+    const grandTotal = finalRentalTotal + pickupFee + returnFee + deposit;
     
     setBookingDetails({ 
-      ...bookingDetails, pickupFee, returnFee, totalDays: days, extraHours, extraHoursFee, totalPrice: rentalTotal, appliedDailyRate, discountTier, discountPercentage, deposit: deposit, grandTotal: grandTotal 
+      ...bookingDetails,
+      pickupFee,
+      returnFee,
+      totalDays: days,
+      extraHours,
+      extraHoursFee,
+      rentalSubtotal: rentalTotal,
+      totalPrice: finalRentalTotal,
+      appliedDailyRate,
+      discountTier,
+      discountPercentage,
+      seasonalPricing,
+      coupon: appliedCoupon,
+      deposit,
+      grandTotal
     });
     setCurrentView('payment');
     window.scrollTo(0, 0);
@@ -1486,6 +2210,197 @@ export default function App() {
       console.error("Database Error:", err);
       showNotification('Failed to connect to the database.', 'error');
       setPaymentProcessing(false);
+    }
+  };
+
+  const handleSaveCoupon = async (e) => {
+    e.preventDefault();
+    if (!user) return;
+
+    const normalizedCode = normalizeCouponCode(couponForm.code);
+    if (!normalizedCode) {
+      showNotification('Please enter a valid coupon code.', 'error');
+      return;
+    }
+
+    const numericValue = Number(couponForm.value || 0);
+    if (numericValue <= 0) {
+      showNotification('Coupon value must be greater than 0.', 'error');
+      return;
+    }
+
+    if (couponForm.type === 'percentage' && numericValue > 100) {
+      showNotification('Percentage coupons cannot exceed 100%.', 'error');
+      return;
+    }
+
+    if (couponForm.validFrom && couponForm.validUntil && couponForm.validFrom > couponForm.validUntil) {
+      showNotification('Valid until date cannot be earlier than valid from date.', 'error');
+      return;
+    }
+
+    const existingCoupon = coupons.find(
+      (coupon) => normalizeCouponCode(coupon.code) === normalizedCode && coupon.docId !== editingCoupon?.docId
+    );
+    if (existingCoupon) {
+      showNotification('This coupon code already exists.', 'error');
+      return;
+    }
+
+    const couponDocId = editingCoupon?.docId || getCouponDocId(normalizedCode);
+    const couponRef = doc(db, ...getCouponCollectionPath(appId), couponDocId);
+
+    const payload = {
+      code: normalizedCode,
+      description: couponForm.description.trim(),
+      type: couponForm.type,
+      value: numericValue,
+      active: couponForm.active,
+      validFrom: couponForm.validFrom || '',
+      validUntil: couponForm.validUntil || '',
+      minimumRentalDays: Number(couponForm.minimumRentalDays || 0),
+      minimumSpend: Number(couponForm.minimumSpend || 0),
+      customerType: couponForm.customerType,
+      applicableScope: couponForm.applicableScope,
+      applicableCategory: couponForm.applicableScope === 'category' ? couponForm.applicableCategory : 'all',
+      applicableCarId: couponForm.applicableScope === 'car' ? String(couponForm.applicableCarId) : 'all',
+      usageLimit: Number(couponForm.usageLimit || 0),
+      usedCount: Number(editingCoupon?.usedCount || 0),
+      onePerCustomer: couponForm.onePerCustomer,
+      firstBookingOnly: couponForm.firstBookingOnly,
+      createdAt: editingCoupon?.createdAt || new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    };
+
+    try {
+      await setDoc(couponRef, payload, { merge: true });
+      setCouponModalOpen(false);
+      setEditingCoupon(null);
+      setCouponForm(EMPTY_COUPON_FORM);
+      showNotification(`Coupon ${normalizedCode} saved successfully.`, 'success');
+    } catch (error) {
+      console.error(error);
+      showNotification('Unable to save coupon right now.', 'error');
+    }
+  };
+
+  const handleToggleCouponStatus = async (coupon) => {
+    if (!user || !coupon?.docId) return;
+    try {
+      const couponRef = doc(db, ...getCouponCollectionPath(appId), coupon.docId);
+      await updateDoc(couponRef, {
+        active: !coupon.active,
+        updatedAt: new Date().toISOString(),
+      });
+      showNotification(
+        `${coupon.code} ${coupon.active ? 'disabled' : 'activated'} successfully.`,
+        coupon.active ? 'info' : 'success'
+      );
+    } catch (error) {
+      console.error(error);
+      showNotification('Unable to update coupon status right now.', 'error');
+    }
+  };
+
+  const openCreateSeasonalModal = () => {
+    setEditingSeasonalPricing(null);
+    setSeasonalForm(EMPTY_SEASONAL_FORM);
+    setSeasonalModalOpen(true);
+  };
+
+  const openEditSeasonalModal = (season) => {
+    setEditingSeasonalPricing(season);
+    setSeasonalForm({
+      name: season.name || '',
+      note: season.note || '',
+      active: season.active !== false,
+      startDate: season.startDate || '',
+      endDate: season.endDate || '',
+      customerType: season.customerType || 'both',
+      scope: season.scope || 'all',
+      category: season.category || 'all',
+      carId: season.carId || 'all',
+      pricingMode: season.pricingMode || 'markup_percentage',
+      value: season.value != null ? String(season.value) : '',
+      priority: season.priority != null ? String(season.priority) : '100',
+    });
+    setSeasonalModalOpen(true);
+  };
+
+  const handleSaveSeasonalPricing = async (e) => {
+    e.preventDefault();
+    if (!user) return;
+
+    if (!seasonalForm.name.trim()) {
+      showNotification('Please enter a seasonal pricing name.', 'error');
+      return;
+    }
+
+    if (!seasonalForm.startDate || !seasonalForm.endDate) {
+      showNotification('Please choose the seasonal start and end dates.', 'error');
+      return;
+    }
+
+    if (seasonalForm.startDate > seasonalForm.endDate) {
+      showNotification('End date cannot be earlier than start date.', 'error');
+      return;
+    }
+
+    const numericValue = Number(seasonalForm.value || 0);
+    if (seasonalForm.value === '' || Number.isNaN(numericValue)) {
+      showNotification('Please enter a valid seasonal pricing value.', 'error');
+      return;
+    }
+
+    if (['markup_percentage', 'markdown_percentage'].includes(seasonalForm.pricingMode) && numericValue < 0) {
+      showNotification('Percentage adjustments cannot be negative.', 'error');
+      return;
+    }
+
+    const seasonDocId = editingSeasonalPricing?.docId || `${seasonalForm.startDate}_${seasonalForm.endDate}_${seasonalForm.name}`.toLowerCase().replace(/[^a-z0-9_-]/g, '-');
+    const seasonRef = doc(db, ...getSeasonalCollectionPath(appId), seasonDocId);
+
+    const payload = {
+      name: seasonalForm.name.trim(),
+      note: seasonalForm.note.trim(),
+      active: seasonalForm.active,
+      startDate: seasonalForm.startDate,
+      endDate: seasonalForm.endDate,
+      customerType: seasonalForm.customerType,
+      scope: seasonalForm.scope,
+      category: seasonalForm.scope === 'category' ? seasonalForm.category : 'all',
+      carId: seasonalForm.scope === 'car' ? String(seasonalForm.carId) : 'all',
+      pricingMode: seasonalForm.pricingMode,
+      value: numericValue,
+      priority: Number(seasonalForm.priority || 0),
+      createdAt: editingSeasonalPricing?.createdAt || new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    };
+
+    try {
+      await setDoc(seasonRef, payload, { merge: true });
+      setSeasonalModalOpen(false);
+      setEditingSeasonalPricing(null);
+      setSeasonalForm(EMPTY_SEASONAL_FORM);
+      showNotification(`Seasonal pricing ${editingSeasonalPricing ? 'updated' : 'created'} successfully.`, 'success');
+    } catch (error) {
+      console.error(error);
+      showNotification('Unable to save seasonal pricing right now.', 'error');
+    }
+  };
+
+  const handleToggleSeasonalStatus = async (season) => {
+    if (!user || !season?.docId) return;
+    try {
+      const seasonRef = doc(db, ...getSeasonalCollectionPath(appId), season.docId);
+      await updateDoc(seasonRef, {
+        active: !season.active,
+        updatedAt: new Date().toISOString(),
+      });
+      showNotification(`Seasonal pricing ${season.active ? 'disabled' : 'activated'}.`, 'success');
+    } catch (error) {
+      console.error(error);
+      showNotification('Unable to update seasonal pricing status.', 'error');
     }
   };
 
@@ -1600,6 +2515,149 @@ export default function App() {
     } catch (error) {
       console.error(error);
       showNotification('Error checking PIN.', 'error');
+    }
+  };
+
+  const handleDismissPromoPopup = () => {
+    if (typeof window !== 'undefined' && promoPopupDismissKey) {
+      try {
+        window.localStorage.setItem(promoPopupDismissKey, 'dismissed');
+      } catch (error) {
+        console.error('Unable to persist popup dismissal state:', error);
+      }
+    }
+    setShowPromoPopup(false);
+  };
+
+  const handlePromoPopupPrimaryAction = async () => {
+    if (!activePromoPopup) return;
+
+    if (activePromoPopup.ctaAction === 'scroll_fleet') {
+      const fleetSection = document.getElementById('fleet');
+      if (fleetSection) {
+        fleetSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }
+      handleDismissPromoPopup();
+      return;
+    }
+
+    if (activePromoPopup.ctaAction === 'copy_coupon' && activePromoPopup.couponCode) {
+      try {
+        await navigator.clipboard.writeText(activePromoPopup.couponCode);
+        showNotification(`Coupon code ${activePromoPopup.couponCode} copied. Use it at checkout.`, 'success');
+      } catch (error) {
+        console.error(error);
+        showNotification(`Your promo code is ${activePromoPopup.couponCode}.`, 'info');
+      }
+      handleDismissPromoPopup();
+      return;
+    }
+
+    handleDismissPromoPopup();
+  };
+
+  const openCreatePromoPopupModal = () => {
+    setEditingPromoPopup(null);
+    setPromoPopupForm(EMPTY_PROMO_POPUP_FORM);
+    setPromoPopupModalOpen(true);
+  };
+
+  const openEditPromoPopupModal = (popup) => {
+    setEditingPromoPopup(popup);
+    setPromoPopupForm({
+      badge: popup.badge || '',
+      title: popup.title || '',
+      subtitle: popup.subtitle || '',
+      urgencyText: popup.urgencyText || '',
+      couponCode: popup.couponCode || '',
+      ctaLabel: popup.ctaLabel || '',
+      ctaAction: popup.ctaAction || 'copy_coupon',
+      active: popup.active !== false,
+      startDate: popup.startDate || '',
+      endDate: popup.endDate || '',
+      audience: popup.audience || 'all',
+      theme: popup.theme || 'ocean',
+      priority: popup.priority != null ? String(popup.priority) : '100',
+      dismissible: popup.dismissible !== false,
+    });
+    setPromoPopupModalOpen(true);
+  };
+
+  const handleSavePromoPopup = async (e) => {
+    e.preventDefault();
+    if (!user) return;
+
+    if (!promoPopupForm.title.trim()) {
+      showNotification('Please enter a popup title.', 'error');
+      return;
+    }
+
+    if (!promoPopupForm.ctaLabel.trim()) {
+      showNotification('Please enter a CTA label.', 'error');
+      return;
+    }
+
+    if (promoPopupForm.ctaAction === 'copy_coupon' && !promoPopupForm.couponCode.trim()) {
+      showNotification('Please link a coupon code for the copy coupon action.', 'error');
+      return;
+    }
+
+    if (promoPopupForm.couponCode && !coupons.some((coupon) => normalizeCouponCode(coupon.code) === normalizeCouponCode(promoPopupForm.couponCode))) {
+      showNotification('The selected coupon code does not exist yet.', 'error');
+      return;
+    }
+
+    const payload = {
+      badge: promoPopupForm.badge.trim(),
+      title: promoPopupForm.title.trim(),
+      subtitle: promoPopupForm.subtitle.trim(),
+      urgencyText: promoPopupForm.urgencyText.trim(),
+      couponCode: normalizeCouponCode(promoPopupForm.couponCode),
+      ctaLabel: promoPopupForm.ctaLabel.trim(),
+      ctaAction: promoPopupForm.ctaAction,
+      active: promoPopupForm.active,
+      startDate: promoPopupForm.startDate || '',
+      endDate: promoPopupForm.endDate || '',
+      audience: promoPopupForm.audience,
+      theme: promoPopupForm.theme,
+      priority: Number(promoPopupForm.priority || 0),
+      dismissible: promoPopupForm.dismissible,
+      updatedAt: new Date().toISOString(),
+    };
+
+    try {
+      if (editingPromoPopup?.docId) {
+        const popupRef = doc(db, ...getPromoPopupCollectionPath(appId), editingPromoPopup.docId);
+        await setDoc(popupRef, payload, { merge: true });
+      } else {
+        await addDoc(collection(db, ...getPromoPopupCollectionPath(appId)), {
+          ...payload,
+          createdAt: new Date().toISOString(),
+        });
+      }
+
+      setPromoPopupModalOpen(false);
+      setEditingPromoPopup(null);
+      setPromoPopupForm(EMPTY_PROMO_POPUP_FORM);
+      showNotification(`Promo popup ${editingPromoPopup ? 'updated' : 'created'} successfully.`, 'success');
+    } catch (error) {
+      console.error(error);
+      showNotification('Unable to save promo popup right now.', 'error');
+    }
+  };
+
+  const handleTogglePromoPopupStatus = async (popup) => {
+    if (!user || !popup?.docId) return;
+    try {
+      const popupRef = doc(db, ...getPromoPopupCollectionPath(appId), popup.docId);
+      await updateDoc(popupRef, {
+        active: !popup.active,
+        updatedAt: new Date().toISOString(),
+      });
+      showNotification(`Promo popup ${popup.active ? 'disabled' : 'activated'}.`, 'success');
+    } catch (error) {
+      console.error(error);
+      showNotification('Unable to update promo popup status.', 'error');
     }
   };
 
@@ -2347,6 +3405,16 @@ export default function App() {
 
             <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-8">
               {filteredCars.map(car => {
+                const regularDailyRate = fleetPricingMode === 'local' ? car.priceLocal : car.priceTourist;
+                const seasonalOutcome = getSeasonalPricingOutcome(seasonalPricings, {
+                  car,
+                  customerType: fleetPricingMode,
+                  startDate: bookingDetails.startDate,
+                  endDate: bookingDetails.endDate,
+                  baseDailyRate: regularDailyRate,
+                });
+                const displayDailyRate = seasonalOutcome.adjustedBaseRate || regularDailyRate;
+                const hasSeasonalRate = Boolean(seasonalOutcome.seasonalPricing.seasonalDocId);
                 // LOGIK ZOOM KHAS: Kereta yang ada banyak padding lutsinar kita zoom lebih sikit
                 const isSmallImage = [2, 20, 23].includes(car.id); // 2: Axia Old, 20: Vellfire 3rd Gen, 23: Starex
                 const scaleClasses = isSmallImage ? "scale-125 group-hover:scale-[1.4]" : "scale-110 group-hover:scale-125";
@@ -2374,7 +3442,14 @@ export default function App() {
                       <span className="text-[10px] bg-cyan-100 text-cyan-800 px-3 py-1 rounded-lg font-bold uppercase tracking-wider">{car.category}</span>
                     </div>
                     <div className="flex justify-between items-start mb-4 mt-2">
-                      <h3 className="brand font-bold text-xl text-slate-900 group-hover:text-cyan-700 transition-colors">{car.name}</h3>
+                      <div>
+                        <h3 className="brand font-bold text-xl text-slate-900 group-hover:text-cyan-700 transition-colors">{car.name}</h3>
+                        {hasSeasonalRate && (
+                          <p className="mt-2 inline-flex items-center rounded-full bg-amber-100 px-3 py-1 text-[11px] font-bold uppercase tracking-[0.16em] text-amber-800">
+                            Seasonal Rate Applied
+                          </p>
+                        )}
+                      </div>
                     </div>
                     <div className="flex flex-wrap gap-4 text-sm font-medium text-slate-600 mb-6 bg-slate-50/50 p-3 rounded-lg border border-slate-100">
                       <span className="flex items-center gap-1.5"><Users size={16} className="text-cyan-600"/>{car.seats} Seats</span>
@@ -2383,8 +3458,14 @@ export default function App() {
                     </div>
                     <div className="mt-auto flex justify-between items-end pt-4 border-t border-slate-200">
                       <div>
-                        <span className="brand text-3xl font-bold text-cyan-600">MYR {fleetPricingMode === 'local' ? car.priceLocal : car.priceTourist}</span>
+                        {hasSeasonalRate && (
+                          <p className="text-sm font-bold text-slate-400 line-through">MYR {regularDailyRate}</p>
+                        )}
+                        <span className={`brand text-3xl font-bold ${hasSeasonalRate ? 'text-amber-600' : 'text-cyan-600'}`}>MYR {displayDailyRate}</span>
                         <span className="text-slate-500 text-sm font-medium">/day</span>
+                        {hasSeasonalRate && (
+                          <p className="mt-1 text-xs font-bold text-amber-700">{seasonalOutcome.seasonalPricing.name}</p>
+                        )}
                       </div>
                       <button onClick={() => handleBookNow(car)} className="btn-primary text-white px-5 py-2.5 rounded-xl font-bold transition-colors flex items-center gap-2 shadow-md">
                         Book Now
@@ -2487,11 +3568,36 @@ export default function App() {
   const BookingView = () => {
     const isTourist = bookingDetails.customerType === 'international';
     const currentDailyPrice = isTourist ? selectedCar.priceTourist : selectedCar.priceLocal;
+    const seasonalOutcome = getSeasonalPricingOutcome(seasonalPricings, {
+      car: selectedCar,
+      customerType: bookingDetails.customerType,
+      startDate: bookingDetails.startDate,
+      endDate: bookingDetails.endDate,
+      baseDailyRate: currentDailyPrice,
+    });
+    const effectiveDailyPrice = seasonalOutcome.adjustedBaseRate || currentDailyPrice;
     const currentDeposit = isTourist ? selectedCar.depositTourist : selectedCar.depositLocal;
     const currentPickupFee = bookingDetails.pickupLocationMeta?.fee ?? bookingDetails.pickupFee ?? 0;
     const currentReturnFee = bookingDetails.returnLocationMeta?.fee ?? bookingDetails.returnFee ?? 0;
 
-    const liveRental = getRentalDurationAndCost(bookingDetails.startDate, bookingDetails.endDate, currentDailyPrice);
+    const liveRental = getRentalDurationAndCost(bookingDetails.startDate, bookingDetails.endDate, effectiveDailyPrice);
+    const activeCoupon = bookingDetails.coupon?.code
+      ? coupons.find((coupon) => normalizeCouponCode(coupon.code) === normalizeCouponCode(bookingDetails.coupon.code))
+      : null;
+    const liveCouponOutcome = activeCoupon
+      ? calculateCouponOutcome(activeCoupon, {
+          rentalTotal: liveRental.rentalTotal,
+          totalDays: liveRental.days,
+          customerType: bookingDetails.customerType,
+          car: selectedCar,
+          customerEmail: bookingDetails.email,
+        })
+      : null;
+    const liveCouponDiscount = liveCouponOutcome?.valid
+      ? liveCouponOutcome.summary.discountAmount
+      : Number(bookingDetails.coupon?.discountAmount || 0);
+    const liveRentalAfterCoupon = Math.max(0, liveRental.rentalTotal - liveCouponDiscount);
+    const liveGrandTotal = liveRentalAfterCoupon + currentPickupFee + currentReturnFee + currentDeposit;
 
     return (
       <>
@@ -2509,6 +3615,11 @@ export default function App() {
                 <span className="bg-white/10 border border-white/20 px-4 py-2 rounded-xl text-sm font-bold flex items-center gap-2 shadow-sm">
                   <ShieldCheck size={18}/> Refundable Deposit: MYR {currentDeposit}
                 </span>
+                {seasonalOutcome.seasonalPricing.seasonalDocId && (
+                  <span className="bg-amber-400/90 text-slate-900 px-4 py-2 rounded-xl text-sm font-bold flex items-center gap-2 shadow-sm">
+                    <Sparkles size={16}/> {seasonalOutcome.seasonalPricing.name}
+                  </span>
+                )}
               </div>
             </div>
             
@@ -2520,11 +3631,19 @@ export default function App() {
                 {liveRental?.discountPercentage > 0 && (
                   <p className="text-white/60 line-through text-lg font-bold mb-[-5px]">MYR {currentDailyPrice}</p>
                 )}
+                {seasonalOutcome.seasonalPricing.seasonalDocId && liveRental?.discountPercentage === 0 && (
+                  <p className="text-white/60 line-through text-lg font-bold mb-[-5px]">MYR {currentDailyPrice}</p>
+                )}
                 <p className="brand text-5xl sm:text-6xl font-bold text-white">MYR {liveRental?.totalHours > 0 ? liveRental.appliedDailyRate : currentDailyPrice} <span className="text-lg font-normal font-dm">/day</span></p>
                 {liveRental?.discountPercentage > 0 && (
                   <div className="inline-flex mt-2 items-center bg-emerald-500 text-white px-3 py-1 rounded-lg text-xs font-bold shadow-lg">
                     <Sparkles size={12} className="mr-1"/> {liveRental.discountPercentage}% OFF ({liveRental.discountTier})
                   </div>
+                )}
+                {seasonalOutcome.seasonalPricing.seasonalDocId && (
+                  <p className="mt-2 text-xs font-bold uppercase tracking-[0.16em] text-amber-100">
+                    {summarizeSeasonalAdjustment(seasonalOutcome.seasonalPricing)}
+                  </p>
                 )}
               </div>
             </div>
@@ -2771,6 +3890,55 @@ export default function App() {
                 </div>
               </div>
 
+              <div className="bg-slate-50 p-6 sm:p-8 rounded-2xl border border-slate-200 mb-8 shadow-sm">
+                <div className="mb-5 border-b border-slate-200 pb-3">
+                  <h3 className="font-bold text-slate-800 text-lg flex items-center gap-2"><Sparkles size={20} className="text-cyan-600"/> Promo Code</h3>
+                  <p className="text-xs text-slate-500 font-medium mt-1.5">Coupons apply to the rental amount only. Security deposit and logistics fees remain unchanged.</p>
+                </div>
+                <div className="grid gap-3 sm:grid-cols-[1fr_auto_auto]">
+                  <input
+                    type="text"
+                    value={couponInput}
+                    onChange={(e) => {
+                      setCouponInput(normalizeCouponCode(e.target.value));
+                      if (couponFeedback.message) {
+                        setCouponFeedback({ type: '', message: '' });
+                      }
+                    }}
+                    placeholder="Enter coupon code"
+                    className="w-full bg-white border border-slate-200 rounded-xl px-4 py-3 focus:ring-2 focus:ring-cyan-500 font-medium uppercase"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => applyCouponCode(couponInput)}
+                    className="px-5 py-3 rounded-xl bg-cyan-600 text-white font-bold hover:bg-cyan-700 transition-colors"
+                  >
+                    Apply
+                  </button>
+                  <button
+                    type="button"
+                    onClick={removeCouponCode}
+                    className="px-5 py-3 rounded-xl bg-slate-100 text-slate-700 font-bold hover:bg-slate-200 transition-colors"
+                  >
+                    Clear
+                  </button>
+                </div>
+                {couponFeedback.message && (
+                  <p className={`mt-3 text-sm font-bold ${couponFeedback.type === 'error' ? 'text-red-600' : 'text-emerald-600'}`}>
+                    {couponFeedback.message}
+                  </p>
+                )}
+                {bookingDetails.coupon?.code && liveCouponDiscount > 0 && (
+                  <div className="mt-4 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3">
+                    <p className="text-xs font-bold uppercase tracking-[0.18em] text-emerald-700">Applied Coupon</p>
+                    <div className="mt-2 flex flex-col gap-1 text-sm text-emerald-900">
+                      <p className="font-bold">{bookingDetails.coupon.code} {bookingDetails.coupon.description ? `- ${bookingDetails.coupon.description}` : ''}</p>
+                      <p>You save MYR {liveCouponDiscount} on the rental subtotal.</p>
+                    </div>
+                  </div>
+                )}
+              </div>
+
               {(() => {
                 if (bookingDetails.startDate && bookingDetails.endDate && liveRental.totalHours > 0) {
                   return (
@@ -2782,10 +3950,22 @@ export default function App() {
                         <span>Rental Rate ({liveRental.days} Days @ MYR {liveRental.appliedDailyRate}/day):</span>
                         <span>MYR {liveRental.days * liveRental.appliedDailyRate}</span>
                       </div>
+                      {seasonalOutcome.seasonalPricing.seasonalDocId && (
+                        <div className="flex justify-between items-center mb-2 text-sm font-bold text-amber-700">
+                          <span>Seasonal Pricing ({seasonalOutcome.seasonalPricing.name}):</span>
+                          <span>{summarizeSeasonalAdjustment(seasonalOutcome.seasonalPricing)}</span>
+                        </div>
+                      )}
                       {liveRental.extraHours > 0 && (
                         <div className="flex justify-between items-center mb-2 text-sm font-bold text-slate-700">
                           <span>Extra Hours Fee ({liveRental.extraHours} Hours):</span>
                           <span>MYR {liveRental.extraHoursFee}</span>
+                        </div>
+                      )}
+                      {liveCouponDiscount > 0 && (
+                        <div className="flex justify-between items-center mb-2 text-sm font-bold text-emerald-700">
+                          <span>Coupon Discount ({bookingDetails.coupon.code}):</span>
+                          <span>- MYR {liveCouponDiscount}</span>
                         </div>
                       )}
                       {bookingDetails.pickupLocation && (
@@ -2807,7 +3987,7 @@ export default function App() {
                       <div className="flex justify-between items-center border-t-2 border-cyan-200 border-dashed pt-4 mt-2">
                         <span className="font-bold text-cyan-900 text-lg">Grand Total:</span>
                         <span className="brand text-3xl font-bold text-teal-700">
-                          MYR {liveRental.rentalTotal + currentPickupFee + currentReturnFee + currentDeposit}
+                          MYR {liveGrandTotal}
                         </span>
                       </div>
                     </div>
@@ -2880,13 +4060,27 @@ export default function App() {
             
             <div className="flex justify-between mb-2">
               <span>Vehicle Rental ({bookingDetails.totalDays} Days @ MYR {bookingDetails.appliedDailyRate})</span>
-              <span className="font-bold text-slate-800">MYR {bookingDetails.totalPrice - (bookingDetails.extraHoursFee || 0)}</span>
+              <span className="font-bold text-slate-800">MYR {(bookingDetails.rentalSubtotal || bookingDetails.totalPrice) - (bookingDetails.extraHoursFee || 0)}</span>
             </div>
 
             {bookingDetails.extraHours > 0 && (
               <div className="flex justify-between mb-2">
                 <span>Extra Hours ({bookingDetails.extraHours} Hours)</span>
                 <span className="font-bold text-slate-800">MYR {bookingDetails.extraHoursFee}</span>
+              </div>
+            )}
+
+            {bookingDetails.seasonalPricing?.seasonalDocId && (
+              <div className="flex justify-between mb-2 text-amber-700">
+                <span>Seasonal Pricing ({bookingDetails.seasonalPricing.name})</span>
+                <span className="font-bold">{summarizeSeasonalAdjustment(bookingDetails.seasonalPricing)}</span>
+              </div>
+            )}
+
+            {bookingDetails.coupon?.discountAmount > 0 && (
+              <div className="flex justify-between mb-2 text-emerald-700">
+                <span>Coupon Discount ({bookingDetails.coupon.code})</span>
+                <span className="font-bold">- MYR {bookingDetails.coupon.discountAmount}</span>
               </div>
             )}
             
@@ -3553,6 +4747,12 @@ export default function App() {
     const successfulBookings = bookings.filter(b => b.status === 'Completed' || b.status === 'Active' || b.status === 'Return_Pending' || b.status === 'Returned');
     const totalSales = successfulBookings.reduce((sum, b) => sum + b.customer.totalPrice + b.customer.pickupFee + b.customer.returnFee, 0);
     const totalNetProfit = successfulBookings.reduce((sum, b) => sum + Number(b.profit || 0), 0);
+    const activeSeasonalPricings = seasonalPricings.filter((season) => getSeasonalPricingStatus(season).label === 'Active');
+    const scheduledSeasonalPricings = seasonalPricings.filter((season) => getSeasonalPricingStatus(season).label === 'Scheduled');
+    const activeCoupons = coupons.filter((coupon) => getCouponStatus(coupon).label === 'Active');
+    const scheduledCoupons = coupons.filter((coupon) => getCouponStatus(coupon).label === 'Scheduled');
+    const activePromoPopups = promoPopups.filter((popup) => getPromoPopupStatus(popup).label === 'Active');
+    const scheduledPromoPopups = promoPopups.filter((popup) => getPromoPopupStatus(popup).label === 'Scheduled');
     const supplierFilterOptions = [
       { value: 'all', label: 'All Suppliers' },
       { value: 'self', label: 'Own Fleet' },
@@ -3614,6 +4814,1019 @@ export default function App() {
             <p className="brand text-3xl font-bold text-emerald-600">MYR {totalNetProfit}</p>
           </div>
         </div>
+
+        <div className="glass-card bg-white rounded-3xl shadow-xl overflow-hidden border border-slate-200 mb-10">
+          <div className="flex flex-col gap-4 border-b border-slate-200 px-8 py-6 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <h2 className="brand text-2xl font-bold text-slate-900 flex items-center gap-2">
+                <Calendar className="text-cyan-600" size={24} /> Seasonal Pricing
+              </h2>
+              <p className="mt-1 text-sm font-medium text-slate-500">Manage peak season, holiday surcharges, and limited-time seasonal markdowns without deploying new code.</p>
+            </div>
+            <button
+              type="button"
+              onClick={openCreateSeasonalModal}
+              className="inline-flex items-center justify-center rounded-xl bg-slate-900 px-5 py-3 text-sm font-bold text-white shadow-md transition hover:bg-slate-800"
+            >
+              <Calendar size={16} className="mr-2" /> Create Season
+            </button>
+          </div>
+
+          <div className="grid gap-4 border-b border-slate-200 bg-slate-50 px-8 py-5 md:grid-cols-3">
+            <div className="rounded-2xl border border-emerald-200 bg-emerald-50 px-5 py-4">
+              <p className="text-xs font-bold uppercase tracking-[0.18em] text-emerald-700">Active</p>
+              <p className="brand mt-2 text-3xl font-bold text-emerald-700">{activeSeasonalPricings.length}</p>
+            </div>
+            <div className="rounded-2xl border border-blue-200 bg-blue-50 px-5 py-4">
+              <p className="text-xs font-bold uppercase tracking-[0.18em] text-blue-700">Scheduled</p>
+              <p className="brand mt-2 text-3xl font-bold text-blue-700">{scheduledSeasonalPricings.length}</p>
+            </div>
+            <div className="rounded-2xl border border-slate-200 bg-white px-5 py-4">
+              <p className="text-xs font-bold uppercase tracking-[0.18em] text-slate-500">Total Seasons</p>
+              <p className="brand mt-2 text-3xl font-bold text-slate-900">{seasonalPricings.length}</p>
+            </div>
+          </div>
+
+          <div className="overflow-x-auto px-2 py-2">
+            <table className="w-full min-w-[980px] text-left text-sm font-medium">
+              <thead className="border-b border-slate-200 bg-white text-xs font-bold uppercase tracking-wider text-slate-500">
+                <tr>
+                  <th className="px-6 py-4">Season</th>
+                  <th className="px-6 py-4">Applies To</th>
+                  <th className="px-6 py-4">Adjustment</th>
+                  <th className="px-6 py-4">Validity</th>
+                  <th className="px-6 py-4">Priority</th>
+                  <th className="px-6 py-4">Status</th>
+                  <th className="px-6 py-4 text-right">Action</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {seasonalPricings.length === 0 ? (
+                  <tr>
+                    <td colSpan="7" className="px-6 py-12 text-center text-slate-400">
+                      No seasonal pricing rules yet. Create a season and test it with your booking dates.
+                    </td>
+                  </tr>
+                ) : (
+                  seasonalPricings.map((season) => {
+                    const seasonStatus = getSeasonalPricingStatus(season);
+                    return (
+                      <tr key={season.docId} className="hover:bg-slate-50/80">
+                        <td className="px-6 py-4 align-top">
+                          <p className="font-bold text-slate-900">{season.name}</p>
+                          <p className="mt-1 max-w-[260px] text-xs text-slate-500">{season.note || 'No internal note'}</p>
+                        </td>
+                        <td className="px-6 py-4 align-top">
+                          <p className="text-slate-700">{season.customerType === 'both' ? 'Local & Tourist' : season.customerType === 'local' ? 'Local only' : 'Tourist only'}</p>
+                          <p className="mt-1 text-xs text-slate-500">{getSeasonalScopeLabel(season)}</p>
+                        </td>
+                        <td className="px-6 py-4 align-top">
+                          <p className="font-bold text-slate-900">{summarizeSeasonalAdjustment(season)}</p>
+                          <p className="mt-1 text-xs text-slate-500 capitalize">{season.pricingMode.replace(/_/g, ' ')}</p>
+                        </td>
+                        <td className="px-6 py-4 align-top">
+                          <p className="text-slate-700">{formatDateForInputDisplay(season.startDate)}</p>
+                          <p className="mt-1 text-xs text-slate-500">to {formatDateForInputDisplay(season.endDate)}</p>
+                        </td>
+                        <td className="px-6 py-4 align-top text-slate-700">{Number(season.priority || 0)}</td>
+                        <td className="px-6 py-4 align-top">
+                          <span className={`inline-flex rounded-full px-3 py-1 text-xs font-bold ${getCouponStatusClass(seasonStatus.tone)}`}>
+                            {seasonStatus.label}
+                          </span>
+                        </td>
+                        <td className="px-6 py-4 align-top">
+                          <div className="flex justify-end gap-2">
+                            <button
+                              type="button"
+                              onClick={() => openEditSeasonalModal(season)}
+                              className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-bold text-slate-700 hover:bg-slate-100"
+                            >
+                              Edit
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => handleToggleSeasonalStatus(season)}
+                              className={`rounded-lg px-3 py-2 text-xs font-bold ${season.active ? 'bg-red-50 text-red-700 hover:bg-red-100' : 'bg-emerald-50 text-emerald-700 hover:bg-emerald-100'}`}
+                            >
+                              {season.active ? 'Disable' : 'Activate'}
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <div className="glass-card bg-white rounded-3xl shadow-xl overflow-hidden border border-slate-200 mb-10">
+          <div className="flex flex-col gap-4 border-b border-slate-200 px-8 py-6 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <h2 className="brand text-2xl font-bold text-slate-900 flex items-center gap-2">
+                <Sparkles className="text-cyan-600" size={24} /> Coupons & Promo Codes
+              </h2>
+              <p className="mt-1 text-sm font-medium text-slate-500">Create, edit, and disable coupons without deploying new code.</p>
+            </div>
+            <button
+              type="button"
+              onClick={openCreateCouponModal}
+              className="inline-flex items-center justify-center rounded-xl bg-cyan-600 px-5 py-3 text-sm font-bold text-white shadow-md transition hover:bg-cyan-700"
+            >
+              <Sparkles size={16} className="mr-2" /> Create Coupon
+            </button>
+          </div>
+
+          <div className="grid gap-4 border-b border-slate-200 bg-slate-50 px-8 py-5 md:grid-cols-3">
+            <div className="rounded-2xl border border-emerald-200 bg-emerald-50 px-5 py-4">
+              <p className="text-xs font-bold uppercase tracking-[0.18em] text-emerald-700">Active</p>
+              <p className="brand mt-2 text-3xl font-bold text-emerald-700">{activeCoupons.length}</p>
+            </div>
+            <div className="rounded-2xl border border-blue-200 bg-blue-50 px-5 py-4">
+              <p className="text-xs font-bold uppercase tracking-[0.18em] text-blue-700">Scheduled</p>
+              <p className="brand mt-2 text-3xl font-bold text-blue-700">{scheduledCoupons.length}</p>
+            </div>
+            <div className="rounded-2xl border border-slate-200 bg-white px-5 py-4">
+              <p className="text-xs font-bold uppercase tracking-[0.18em] text-slate-500">Total Coupons</p>
+              <p className="brand mt-2 text-3xl font-bold text-slate-900">{coupons.length}</p>
+            </div>
+          </div>
+
+          <div className="overflow-x-auto px-2 py-2">
+            <table className="w-full min-w-[980px] text-left text-sm font-medium">
+              <thead className="border-b border-slate-200 bg-white text-xs font-bold uppercase tracking-wider text-slate-500">
+                <tr>
+                  <th className="px-6 py-4">Code</th>
+                  <th className="px-6 py-4">Discount</th>
+                  <th className="px-6 py-4">Eligibility</th>
+                  <th className="px-6 py-4">Validity</th>
+                  <th className="px-6 py-4">Used / Limit</th>
+                  <th className="px-6 py-4">Status</th>
+                  <th className="px-6 py-4 text-right">Action</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {coupons.length === 0 ? (
+                  <tr>
+                    <td colSpan="7" className="px-6 py-12 text-center text-slate-400">
+                      No coupons yet. Create your first promo code to start.
+                    </td>
+                  </tr>
+                ) : (
+                  coupons.map((coupon) => {
+                    const couponStatus = getCouponStatus(coupon);
+                    return (
+                      <tr key={coupon.docId} className="hover:bg-slate-50/80">
+                        <td className="px-6 py-4 align-top">
+                          <p className="font-mono font-bold text-slate-900">{coupon.code}</p>
+                          <p className="mt-1 max-w-[240px] text-xs text-slate-500">{coupon.description || 'No internal note'}</p>
+                        </td>
+                        <td className="px-6 py-4 align-top">
+                          <p className="font-bold text-slate-900">{summarizeCouponValue(coupon)}</p>
+                          <p className="mt-1 text-xs text-slate-500">{coupon.type === 'fixed_amount' ? 'Fixed amount discount' : 'Percentage discount'}</p>
+                        </td>
+                        <td className="px-6 py-4 align-top">
+                          <p className="text-slate-700">
+                            {coupon.customerType === 'both' ? 'Local & Tourist' : coupon.customerType === 'local' ? 'Local only' : 'Tourist only'}
+                          </p>
+                          <p className="mt-1 text-xs text-slate-500">
+                            {coupon.applicableScope === 'all'
+                              ? 'All vehicles'
+                              : coupon.applicableScope === 'category'
+                                ? `Category: ${coupon.applicableCategory}`
+                                : `Vehicle ID: ${coupon.applicableCarId}`}
+                          </p>
+                          {(Number(coupon.minimumRentalDays || 0) > 0 || Number(coupon.minimumSpend || 0) > 0) && (
+                            <p className="mt-1 text-xs text-slate-500">
+                              {Number(coupon.minimumRentalDays || 0) > 0 ? `Min ${coupon.minimumRentalDays} day(s)` : 'No min days'}
+                              {Number(coupon.minimumSpend || 0) > 0 ? ` | Min MYR ${coupon.minimumSpend}` : ''}
+                            </p>
+                          )}
+                        </td>
+                        <td className="px-6 py-4 align-top">
+                          <p className="text-slate-700">{coupon.validFrom ? formatDateForInputDisplay(coupon.validFrom) : 'Immediate'}</p>
+                          <p className="mt-1 text-xs text-slate-500">to {coupon.validUntil ? formatDateForInputDisplay(coupon.validUntil) : 'No expiry'}</p>
+                        </td>
+                        <td className="px-6 py-4 align-top text-slate-700">
+                          {Number(coupon.usedCount || 0)} / {Number(coupon.usageLimit || 0) > 0 ? coupon.usageLimit : 'Unlimited'}
+                        </td>
+                        <td className="px-6 py-4 align-top">
+                          <span className={`inline-flex rounded-full px-3 py-1 text-xs font-bold ${getCouponStatusClass(couponStatus.tone)}`}>
+                            {couponStatus.label}
+                          </span>
+                        </td>
+                        <td className="px-6 py-4 align-top">
+                          <div className="flex justify-end gap-2">
+                            <button
+                              type="button"
+                              onClick={() => openEditCouponModal(coupon)}
+                              className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-bold text-slate-700 hover:bg-slate-100"
+                            >
+                              Edit
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => handleToggleCouponStatus(coupon)}
+                              className={`rounded-lg px-3 py-2 text-xs font-bold ${coupon.active ? 'bg-red-50 text-red-700 hover:bg-red-100' : 'bg-emerald-50 text-emerald-700 hover:bg-emerald-100'}`}
+                            >
+                              {coupon.active ? 'Disable' : 'Activate'}
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <div className="glass-card bg-white rounded-3xl shadow-xl overflow-hidden border border-slate-200 mb-10">
+          <div className="flex flex-col gap-4 border-b border-slate-200 px-8 py-6 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <h2 className="brand text-2xl font-bold text-slate-900 flex items-center gap-2">
+                <Bell className="text-cyan-600" size={24} /> Homepage Promo Popups
+              </h2>
+              <p className="mt-1 text-sm font-medium text-slate-500">Create limited-time homepage popups without touching code again.</p>
+            </div>
+            <button
+              type="button"
+              onClick={openCreatePromoPopupModal}
+              className="inline-flex items-center justify-center rounded-xl bg-slate-900 px-5 py-3 text-sm font-bold text-white shadow-md transition hover:bg-slate-800"
+            >
+              <Bell size={16} className="mr-2" /> Create Popup
+            </button>
+          </div>
+
+          <div className="grid gap-4 border-b border-slate-200 bg-slate-50 px-8 py-5 md:grid-cols-3">
+            <div className="rounded-2xl border border-emerald-200 bg-emerald-50 px-5 py-4">
+              <p className="text-xs font-bold uppercase tracking-[0.18em] text-emerald-700">Active</p>
+              <p className="brand mt-2 text-3xl font-bold text-emerald-700">{activePromoPopups.length}</p>
+            </div>
+            <div className="rounded-2xl border border-blue-200 bg-blue-50 px-5 py-4">
+              <p className="text-xs font-bold uppercase tracking-[0.18em] text-blue-700">Scheduled</p>
+              <p className="brand mt-2 text-3xl font-bold text-blue-700">{scheduledPromoPopups.length}</p>
+            </div>
+            <div className="rounded-2xl border border-slate-200 bg-white px-5 py-4">
+              <p className="text-xs font-bold uppercase tracking-[0.18em] text-slate-500">Total Popups</p>
+              <p className="brand mt-2 text-3xl font-bold text-slate-900">{promoPopups.length}</p>
+            </div>
+          </div>
+
+          <div className="overflow-x-auto px-2 py-2">
+            <table className="w-full min-w-[980px] text-left text-sm font-medium">
+              <thead className="border-b border-slate-200 bg-white text-xs font-bold uppercase tracking-wider text-slate-500">
+                <tr>
+                  <th className="px-6 py-4">Popup</th>
+                  <th className="px-6 py-4">Audience</th>
+                  <th className="px-6 py-4">Coupon / CTA</th>
+                  <th className="px-6 py-4">Validity</th>
+                  <th className="px-6 py-4">Priority</th>
+                  <th className="px-6 py-4">Status</th>
+                  <th className="px-6 py-4 text-right">Action</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {promoPopups.length === 0 ? (
+                  <tr>
+                    <td colSpan="7" className="px-6 py-12 text-center text-slate-400">
+                      No promo popups yet. Create one and it will appear on the homepage automatically.
+                    </td>
+                  </tr>
+                ) : (
+                  promoPopups.map((popup) => {
+                    const popupStatus = getPromoPopupStatus(popup);
+                    return (
+                      <tr key={popup.docId} className="hover:bg-slate-50/80">
+                        <td className="px-6 py-4 align-top">
+                          <p className="font-bold text-slate-900">{popup.title}</p>
+                          <p className="mt-1 text-xs font-bold uppercase tracking-[0.18em] text-cyan-600">{popup.badge || 'No badge'}</p>
+                          <p className="mt-1 max-w-[260px] text-xs text-slate-500">{popup.subtitle || 'No subtitle provided.'}</p>
+                        </td>
+                        <td className="px-6 py-4 align-top">
+                          <p className="text-slate-700">{getPromoPopupAudienceLabel(popup.audience)}</p>
+                          <p className="mt-1 text-xs text-slate-500 capitalize">{popup.theme || 'ocean'} theme</p>
+                        </td>
+                        <td className="px-6 py-4 align-top">
+                          <p className="font-mono text-slate-900">{popup.couponCode || 'No coupon linked'}</p>
+                          <p className="mt-1 text-xs text-slate-500">{popup.ctaLabel || 'No CTA label'} - {popup.ctaAction === 'copy_coupon' ? 'Copy coupon' : popup.ctaAction === 'scroll_fleet' ? 'Scroll to fleet' : 'Dismiss'}</p>
+                        </td>
+                        <td className="px-6 py-4 align-top">
+                          <p className="text-slate-700">{popup.startDate ? formatDateForInputDisplay(popup.startDate) : 'Immediate'}</p>
+                          <p className="mt-1 text-xs text-slate-500">to {popup.endDate ? formatDateForInputDisplay(popup.endDate) : 'No expiry'}</p>
+                        </td>
+                        <td className="px-6 py-4 align-top text-slate-700">{Number(popup.priority || 0)}</td>
+                        <td className="px-6 py-4 align-top">
+                          <span className={`inline-flex rounded-full px-3 py-1 text-xs font-bold ${getCouponStatusClass(popupStatus.tone)}`}>
+                            {popupStatus.label}
+                          </span>
+                        </td>
+                        <td className="px-6 py-4 align-top">
+                          <div className="flex justify-end gap-2">
+                            <button
+                              type="button"
+                              onClick={() => openEditPromoPopupModal(popup)}
+                              className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-bold text-slate-700 hover:bg-slate-100"
+                            >
+                              Edit
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => handleTogglePromoPopupStatus(popup)}
+                              className={`rounded-lg px-3 py-2 text-xs font-bold ${popup.active ? 'bg-red-50 text-red-700 hover:bg-red-100' : 'bg-emerald-50 text-emerald-700 hover:bg-emerald-100'}`}
+                            >
+                              {popup.active ? 'Disable' : 'Activate'}
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        {couponModalOpen && (
+          <div className="fixed inset-0 z-[120] flex items-start justify-center overflow-y-auto bg-slate-900/70 p-4 pt-24 pb-6 backdrop-blur-sm sm:pt-28">
+            <div className="max-h-[calc(100vh-7rem)] w-full max-w-3xl overflow-y-auto rounded-3xl bg-white shadow-2xl sm:max-h-[calc(100vh-8rem)]">
+              <div className="sticky top-0 z-10 flex items-center justify-between border-b border-slate-200 bg-slate-900 px-6 py-5 text-white">
+                <div>
+                  <p className="text-xs font-bold uppercase tracking-[0.18em] text-cyan-300">Coupon Manager</p>
+                  <h3 className="brand mt-1 text-2xl font-bold">{editingCoupon ? `Edit ${editingCoupon.code}` : 'Create Coupon'}</h3>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setCouponModalOpen(false);
+                    setEditingCoupon(null);
+                    setCouponForm(EMPTY_COUPON_FORM);
+                  }}
+                  className="rounded-full border border-white/20 bg-white/10 p-2 hover:bg-white/20"
+                >
+                  <X size={20} />
+                </button>
+              </div>
+
+              <form onSubmit={handleSaveCoupon} className="space-y-8 p-6 sm:p-8">
+                <div className="grid gap-5 md:grid-cols-2">
+                  <div>
+                    <label className="mb-1.5 block text-sm font-bold text-slate-700">Coupon Code</label>
+                    <input
+                      required
+                      type="text"
+                      value={couponForm.code}
+                      onChange={(e) => setCouponForm((prev) => ({ ...prev, code: normalizeCouponCode(e.target.value) }))}
+                      className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 font-medium uppercase focus:ring-2 focus:ring-cyan-500"
+                      placeholder="AFWAJA10"
+                    />
+                  </div>
+                  <div>
+                    <label className="mb-1.5 block text-sm font-bold text-slate-700">Internal Note</label>
+                    <input
+                      type="text"
+                      value={couponForm.description}
+                      onChange={(e) => setCouponForm((prev) => ({ ...prev, description: e.target.value }))}
+                      className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 font-medium focus:ring-2 focus:ring-cyan-500"
+                      placeholder="Hari Raya / VIP / Partner Campaign"
+                    />
+                  </div>
+                </div>
+
+                <div className="grid gap-5 md:grid-cols-3">
+                  <div>
+                    <label className="mb-1.5 block text-sm font-bold text-slate-700">Discount Type</label>
+                    <select
+                      value={couponForm.type}
+                      onChange={(e) => setCouponForm((prev) => ({ ...prev, type: e.target.value }))}
+                      className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 font-medium focus:ring-2 focus:ring-cyan-500"
+                    >
+                      <option value="percentage">Percentage</option>
+                      <option value="fixed_amount">Fixed Amount</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="mb-1.5 block text-sm font-bold text-slate-700">{couponForm.type === 'fixed_amount' ? 'Discount Value (MYR)' : 'Discount Value (%)'}</label>
+                    <input
+                      required
+                      type="number"
+                      min="0"
+                      step={couponForm.type === 'fixed_amount' ? '1' : '0.1'}
+                      value={couponForm.value}
+                      onChange={(e) => setCouponForm((prev) => ({ ...prev, value: e.target.value }))}
+                      className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 font-medium focus:ring-2 focus:ring-cyan-500"
+                    />
+                  </div>
+                  <div>
+                    <label className="mb-1.5 block text-sm font-bold text-slate-700">Status</label>
+                    <select
+                      value={couponForm.active ? 'active' : 'disabled'}
+                      onChange={(e) => setCouponForm((prev) => ({ ...prev, active: e.target.value === 'active' }))}
+                      className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 font-medium focus:ring-2 focus:ring-cyan-500"
+                    >
+                      <option value="active">Active</option>
+                      <option value="disabled">Disabled</option>
+                    </select>
+                  </div>
+                </div>
+
+                <div className="grid gap-5 md:grid-cols-2">
+                  <div>
+                    <label className="mb-1.5 block text-sm font-bold text-slate-700">Valid From</label>
+                    <input
+                      type="date"
+                      value={couponForm.validFrom}
+                      onChange={(e) => setCouponForm((prev) => ({ ...prev, validFrom: e.target.value }))}
+                      className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 font-medium focus:ring-2 focus:ring-cyan-500"
+                    />
+                  </div>
+                  <div>
+                    <label className="mb-1.5 block text-sm font-bold text-slate-700">Valid Until</label>
+                    <input
+                      type="date"
+                      value={couponForm.validUntil}
+                      onChange={(e) => setCouponForm((prev) => ({ ...prev, validUntil: e.target.value }))}
+                      className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 font-medium focus:ring-2 focus:ring-cyan-500"
+                    />
+                  </div>
+                </div>
+
+                <div className="grid gap-5 md:grid-cols-3">
+                  <div>
+                    <label className="mb-1.5 block text-sm font-bold text-slate-700">Customer Type</label>
+                    <select
+                      value={couponForm.customerType}
+                      onChange={(e) => setCouponForm((prev) => ({ ...prev, customerType: e.target.value }))}
+                      className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 font-medium focus:ring-2 focus:ring-cyan-500"
+                    >
+                      <option value="both">Local & Tourist</option>
+                      <option value="local">Local only</option>
+                      <option value="international">Tourist only</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="mb-1.5 block text-sm font-bold text-slate-700">Minimum Rental Days</label>
+                    <input
+                      type="number"
+                      min="0"
+                      value={couponForm.minimumRentalDays}
+                      onChange={(e) => setCouponForm((prev) => ({ ...prev, minimumRentalDays: e.target.value }))}
+                      className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 font-medium focus:ring-2 focus:ring-cyan-500"
+                      placeholder="Optional"
+                    />
+                  </div>
+                  <div>
+                    <label className="mb-1.5 block text-sm font-bold text-slate-700">Minimum Rental Subtotal (MYR)</label>
+                    <input
+                      type="number"
+                      min="0"
+                      value={couponForm.minimumSpend}
+                      onChange={(e) => setCouponForm((prev) => ({ ...prev, minimumSpend: e.target.value }))}
+                      className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 font-medium focus:ring-2 focus:ring-cyan-500"
+                      placeholder="Optional"
+                    />
+                  </div>
+                </div>
+
+                <div className="grid gap-5 md:grid-cols-3">
+                  <div>
+                    <label className="mb-1.5 block text-sm font-bold text-slate-700">Applies To</label>
+                    <select
+                      value={couponForm.applicableScope}
+                      onChange={(e) => setCouponForm((prev) => ({ ...prev, applicableScope: e.target.value }))}
+                      className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 font-medium focus:ring-2 focus:ring-cyan-500"
+                    >
+                      <option value="all">All Vehicles</option>
+                      <option value="category">By Category</option>
+                      <option value="car">Specific Vehicle</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="mb-1.5 block text-sm font-bold text-slate-700">Vehicle Category</label>
+                    <select
+                      value={couponForm.applicableCategory}
+                      onChange={(e) => setCouponForm((prev) => ({ ...prev, applicableCategory: e.target.value }))}
+                      disabled={couponForm.applicableScope !== 'category'}
+                      className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 font-medium focus:ring-2 focus:ring-cyan-500 disabled:bg-slate-100"
+                    >
+                      <option value="all">Any Category</option>
+                      {Array.from(new Set(INITIAL_CARS.map((car) => car.category))).sort().map((category) => (
+                        <option key={category} value={category}>{category}</option>
+                      ))}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="mb-1.5 block text-sm font-bold text-slate-700">Specific Vehicle</label>
+                    <select
+                      value={couponForm.applicableCarId}
+                      onChange={(e) => setCouponForm((prev) => ({ ...prev, applicableCarId: e.target.value }))}
+                      disabled={couponForm.applicableScope !== 'car'}
+                      className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 font-medium focus:ring-2 focus:ring-cyan-500 disabled:bg-slate-100"
+                    >
+                      <option value="all">Any Vehicle</option>
+                      {INITIAL_CARS.map((car) => (
+                        <option key={car.id} value={car.id}>{car.name}</option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+
+                <div className="grid gap-5 md:grid-cols-3">
+                  <div>
+                    <label className="mb-1.5 block text-sm font-bold text-slate-700">Usage Limit</label>
+                    <input
+                      type="number"
+                      min="0"
+                      value={couponForm.usageLimit}
+                      onChange={(e) => setCouponForm((prev) => ({ ...prev, usageLimit: e.target.value }))}
+                      className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 font-medium focus:ring-2 focus:ring-cyan-500"
+                      placeholder="0 = Unlimited"
+                    />
+                  </div>
+                  <label className="flex items-center gap-3 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-bold text-slate-700">
+                    <input
+                      type="checkbox"
+                      checked={couponForm.onePerCustomer}
+                      onChange={(e) => setCouponForm((prev) => ({ ...prev, onePerCustomer: e.target.checked }))}
+                      className="h-4 w-4 rounded border-slate-300 text-cyan-600 focus:ring-cyan-500"
+                    />
+                    One use per customer
+                  </label>
+                  <label className="flex items-center gap-3 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-bold text-slate-700">
+                    <input
+                      type="checkbox"
+                      checked={couponForm.firstBookingOnly}
+                      onChange={(e) => setCouponForm((prev) => ({ ...prev, firstBookingOnly: e.target.checked }))}
+                      className="h-4 w-4 rounded border-slate-300 text-cyan-600 focus:ring-cyan-500"
+                    />
+                    First booking only
+                  </label>
+                </div>
+
+                <div className="rounded-2xl border border-cyan-200 bg-cyan-50 px-5 py-4">
+                  <p className="text-xs font-bold uppercase tracking-[0.18em] text-cyan-700">Preview</p>
+                  <p className="mt-2 font-mono text-lg font-bold text-slate-900">{normalizeCouponCode(couponForm.code) || 'CODE'}</p>
+                  <p className="mt-1 text-sm text-slate-600">{summarizeCouponValue({ type: couponForm.type, value: couponForm.value || 0 })} on rental subtotal</p>
+                </div>
+
+                <div className="flex flex-col gap-3 border-t border-slate-200 pt-6 sm:flex-row sm:justify-end">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setCouponModalOpen(false);
+                      setEditingCoupon(null);
+                      setCouponForm(EMPTY_COUPON_FORM);
+                    }}
+                    className="rounded-xl bg-slate-100 px-5 py-3 font-bold text-slate-700 hover:bg-slate-200"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    className="rounded-xl bg-cyan-600 px-5 py-3 font-bold text-white shadow-md hover:bg-cyan-700"
+                  >
+                    Save Coupon
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        )}
+
+        {seasonalModalOpen && (
+          <div className="fixed inset-0 z-[120] flex items-start justify-center overflow-y-auto bg-slate-900/70 p-4 pt-24 pb-6 backdrop-blur-sm sm:pt-28">
+            <div className="max-h-[calc(100vh-7rem)] w-full max-w-3xl overflow-y-auto rounded-3xl bg-white shadow-2xl sm:max-h-[calc(100vh-8rem)]">
+              <div className="sticky top-0 z-10 flex items-center justify-between border-b border-slate-200 bg-slate-900 px-6 py-5 text-white">
+                <div>
+                  <p className="text-xs font-bold uppercase tracking-[0.18em] text-cyan-300">Seasonal Pricing Manager</p>
+                  <h3 className="brand mt-1 text-2xl font-bold">{editingSeasonalPricing ? 'Edit Seasonal Rule' : 'Create Seasonal Rule'}</h3>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSeasonalModalOpen(false);
+                    setEditingSeasonalPricing(null);
+                    setSeasonalForm(EMPTY_SEASONAL_FORM);
+                  }}
+                  className="rounded-full border border-white/20 bg-white/10 p-2 hover:bg-white/20"
+                >
+                  <X size={20} />
+                </button>
+              </div>
+
+              <form onSubmit={handleSaveSeasonalPricing} className="space-y-8 p-6 sm:p-8">
+                <div className="grid gap-5 md:grid-cols-2">
+                  <div>
+                    <label className="mb-1.5 block text-sm font-bold text-slate-700">Season Name</label>
+                    <input
+                      required
+                      type="text"
+                      value={seasonalForm.name}
+                      onChange={(e) => setSeasonalForm((prev) => ({ ...prev, name: e.target.value }))}
+                      className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 font-medium focus:ring-2 focus:ring-cyan-500"
+                      placeholder="Hari Raya Peak 2026"
+                    />
+                  </div>
+                  <div>
+                    <label className="mb-1.5 block text-sm font-bold text-slate-700">Status</label>
+                    <select
+                      value={seasonalForm.active ? 'active' : 'disabled'}
+                      onChange={(e) => setSeasonalForm((prev) => ({ ...prev, active: e.target.value === 'active' }))}
+                      className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 font-medium focus:ring-2 focus:ring-cyan-500"
+                    >
+                      <option value="active">Active</option>
+                      <option value="disabled">Disabled</option>
+                    </select>
+                  </div>
+                </div>
+
+                <div>
+                  <label className="mb-1.5 block text-sm font-bold text-slate-700">Internal Note</label>
+                  <textarea
+                    rows="3"
+                    value={seasonalForm.note}
+                    onChange={(e) => setSeasonalForm((prev) => ({ ...prev, note: e.target.value }))}
+                    className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 font-medium focus:ring-2 focus:ring-cyan-500"
+                    placeholder="Optional note for admin use"
+                  />
+                </div>
+
+                <div className="grid gap-5 md:grid-cols-2">
+                  <div>
+                    <label className="mb-1.5 block text-sm font-bold text-slate-700">Start Date</label>
+                    <input
+                      required
+                      type="date"
+                      value={seasonalForm.startDate}
+                      onChange={(e) => setSeasonalForm((prev) => ({ ...prev, startDate: e.target.value }))}
+                      className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 font-medium focus:ring-2 focus:ring-cyan-500"
+                    />
+                  </div>
+                  <div>
+                    <label className="mb-1.5 block text-sm font-bold text-slate-700">End Date</label>
+                    <input
+                      required
+                      type="date"
+                      value={seasonalForm.endDate}
+                      onChange={(e) => setSeasonalForm((prev) => ({ ...prev, endDate: e.target.value }))}
+                      className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 font-medium focus:ring-2 focus:ring-cyan-500"
+                    />
+                  </div>
+                </div>
+
+                <div className="grid gap-5 md:grid-cols-3">
+                  <div>
+                    <label className="mb-1.5 block text-sm font-bold text-slate-700">Customer Type</label>
+                    <select
+                      value={seasonalForm.customerType}
+                      onChange={(e) => setSeasonalForm((prev) => ({ ...prev, customerType: e.target.value }))}
+                      className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 font-medium focus:ring-2 focus:ring-cyan-500"
+                    >
+                      <option value="both">Local & Tourist</option>
+                      <option value="local">Local only</option>
+                      <option value="international">Tourist only</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="mb-1.5 block text-sm font-bold text-slate-700">Scope</label>
+                    <select
+                      value={seasonalForm.scope}
+                      onChange={(e) => setSeasonalForm((prev) => ({ ...prev, scope: e.target.value }))}
+                      className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 font-medium focus:ring-2 focus:ring-cyan-500"
+                    >
+                      <option value="all">All Vehicles</option>
+                      <option value="category">By Category</option>
+                      <option value="car">Specific Vehicle</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="mb-1.5 block text-sm font-bold text-slate-700">Priority</label>
+                    <input
+                      type="number"
+                      min="0"
+                      value={seasonalForm.priority}
+                      onChange={(e) => setSeasonalForm((prev) => ({ ...prev, priority: e.target.value }))}
+                      className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 font-medium focus:ring-2 focus:ring-cyan-500"
+                    />
+                  </div>
+                </div>
+
+                <div className="grid gap-5 md:grid-cols-2">
+                  <div>
+                    <label className="mb-1.5 block text-sm font-bold text-slate-700">Vehicle Category</label>
+                    <select
+                      value={seasonalForm.category}
+                      onChange={(e) => setSeasonalForm((prev) => ({ ...prev, category: e.target.value }))}
+                      disabled={seasonalForm.scope !== 'category'}
+                      className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 font-medium focus:ring-2 focus:ring-cyan-500 disabled:bg-slate-100"
+                    >
+                      <option value="all">Any Category</option>
+                      {Array.from(new Set(INITIAL_CARS.map((car) => car.category))).sort().map((category) => (
+                        <option key={category} value={category}>{category}</option>
+                      ))}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="mb-1.5 block text-sm font-bold text-slate-700">Specific Vehicle</label>
+                    <select
+                      value={seasonalForm.carId}
+                      onChange={(e) => setSeasonalForm((prev) => ({ ...prev, carId: e.target.value }))}
+                      disabled={seasonalForm.scope !== 'car'}
+                      className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 font-medium focus:ring-2 focus:ring-cyan-500 disabled:bg-slate-100"
+                    >
+                      <option value="all">Any Vehicle</option>
+                      {INITIAL_CARS.map((car) => (
+                        <option key={car.id} value={car.id}>{car.name}</option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+
+                <div className="grid gap-5 md:grid-cols-2">
+                  <div>
+                    <label className="mb-1.5 block text-sm font-bold text-slate-700">Pricing Mode</label>
+                    <select
+                      value={seasonalForm.pricingMode}
+                      onChange={(e) => setSeasonalForm((prev) => ({ ...prev, pricingMode: e.target.value }))}
+                      className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 font-medium focus:ring-2 focus:ring-cyan-500"
+                    >
+                      <option value="markup_percentage">Markup Percentage</option>
+                      <option value="markdown_percentage">Markdown Percentage</option>
+                      <option value="override_price">Override Daily Price</option>
+                      <option value="fixed_adjustment">Fixed Adjustment</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="mb-1.5 block text-sm font-bold text-slate-700">
+                      {seasonalForm.pricingMode === 'override_price'
+                        ? 'New Daily Price (MYR)'
+                        : seasonalForm.pricingMode === 'fixed_adjustment'
+                          ? 'Adjustment Amount (MYR)'
+                          : 'Percentage Value (%)'}
+                    </label>
+                    <input
+                      required
+                      type="number"
+                      step="0.1"
+                      value={seasonalForm.value}
+                      onChange={(e) => setSeasonalForm((prev) => ({ ...prev, value: e.target.value }))}
+                      className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 font-medium focus:ring-2 focus:ring-cyan-500"
+                    />
+                  </div>
+                </div>
+
+                <div className="rounded-2xl border border-cyan-200 bg-cyan-50 px-5 py-4">
+                  <p className="text-xs font-bold uppercase tracking-[0.18em] text-cyan-700">Preview</p>
+                  <p className="mt-2 font-bold text-slate-900">{seasonalForm.name || 'Seasonal rule name'}</p>
+                  <p className="mt-1 text-sm text-slate-600">{summarizeSeasonalAdjustment({ pricingMode: seasonalForm.pricingMode, value: seasonalForm.value })}</p>
+                  <p className="mt-1 text-xs text-slate-500">{getSeasonalScopeLabel({ scope: seasonalForm.scope, category: seasonalForm.category, carId: seasonalForm.carId })}</p>
+                </div>
+
+                <div className="flex flex-col gap-3 border-t border-slate-200 pt-6 sm:flex-row sm:justify-end">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSeasonalModalOpen(false);
+                      setEditingSeasonalPricing(null);
+                      setSeasonalForm(EMPTY_SEASONAL_FORM);
+                    }}
+                    className="rounded-xl bg-slate-100 px-5 py-3 font-bold text-slate-700 hover:bg-slate-200"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    className="rounded-xl bg-slate-900 px-5 py-3 font-bold text-white shadow-md hover:bg-slate-800"
+                  >
+                    Save Seasonal Pricing
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        )}
+
+        {promoPopupModalOpen && (
+          <div className="fixed inset-0 z-[120] flex items-start justify-center overflow-y-auto bg-slate-900/70 p-4 pt-24 pb-6 backdrop-blur-sm sm:pt-28">
+            <div className="max-h-[calc(100vh-7rem)] w-full max-w-3xl overflow-y-auto rounded-3xl bg-white shadow-2xl sm:max-h-[calc(100vh-8rem)]">
+              <div className="sticky top-0 z-10 flex items-center justify-between border-b border-slate-200 bg-slate-900 px-6 py-5 text-white">
+                <div>
+                  <p className="text-xs font-bold uppercase tracking-[0.18em] text-cyan-300">Promo Popup Manager</p>
+                  <h3 className="brand mt-1 text-2xl font-bold">{editingPromoPopup ? 'Edit Promo Popup' : 'Create Promo Popup'}</h3>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setPromoPopupModalOpen(false);
+                    setEditingPromoPopup(null);
+                    setPromoPopupForm(EMPTY_PROMO_POPUP_FORM);
+                  }}
+                  className="rounded-full border border-white/20 bg-white/10 p-2 hover:bg-white/20"
+                >
+                  <X size={20} />
+                </button>
+              </div>
+
+              <form onSubmit={handleSavePromoPopup} className="space-y-8 p-6 sm:p-8">
+                <div className="grid gap-5 md:grid-cols-2">
+                  <div>
+                    <label className="mb-1.5 block text-sm font-bold text-slate-700">Badge / Tag</label>
+                    <input
+                      required
+                      type="text"
+                      value={promoPopupForm.badge}
+                      onChange={(e) => setPromoPopupForm((prev) => ({ ...prev, badge: e.target.value }))}
+                      className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 font-medium focus:ring-2 focus:ring-cyan-500"
+                      placeholder="Limited Time Only"
+                    />
+                  </div>
+                  <div>
+                    <label className="mb-1.5 block text-sm font-bold text-slate-700">Theme</label>
+                    <select
+                      value={promoPopupForm.theme}
+                      onChange={(e) => setPromoPopupForm((prev) => ({ ...prev, theme: e.target.value }))}
+                      className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 font-medium focus:ring-2 focus:ring-cyan-500"
+                    >
+                      <option value="ocean">Ocean</option>
+                      <option value="sunset">Sunset</option>
+                      <option value="midnight">Midnight</option>
+                    </select>
+                  </div>
+                </div>
+
+                <div className="grid gap-5 md:grid-cols-2">
+                  <div>
+                    <label className="mb-1.5 block text-sm font-bold text-slate-700">Title</label>
+                    <input
+                      required
+                      type="text"
+                      value={promoPopupForm.title}
+                      onChange={(e) => setPromoPopupForm((prev) => ({ ...prev, title: e.target.value }))}
+                      className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 font-medium focus:ring-2 focus:ring-cyan-500"
+                      placeholder="First booking gets 10% OFF"
+                    />
+                  </div>
+                  <div>
+                    <label className="mb-1.5 block text-sm font-bold text-slate-700">Urgency Text</label>
+                    <input
+                      type="text"
+                      value={promoPopupForm.urgencyText}
+                      onChange={(e) => setPromoPopupForm((prev) => ({ ...prev, urgencyText: e.target.value }))}
+                      className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 font-medium focus:ring-2 focus:ring-cyan-500"
+                      placeholder="Ends this weekend"
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="mb-1.5 block text-sm font-bold text-slate-700">Subtitle</label>
+                  <textarea
+                    rows="3"
+                    value={promoPopupForm.subtitle}
+                    onChange={(e) => setPromoPopupForm((prev) => ({ ...prev, subtitle: e.target.value }))}
+                    className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 font-medium focus:ring-2 focus:ring-cyan-500"
+                    placeholder="Explain the offer in one concise sentence."
+                  />
+                </div>
+
+                <div className="grid gap-5 md:grid-cols-3">
+                  <div>
+                    <label className="mb-1.5 block text-sm font-bold text-slate-700">Coupon Code</label>
+                    <input
+                      type="text"
+                      value={promoPopupForm.couponCode}
+                      onChange={(e) => setPromoPopupForm((prev) => ({ ...prev, couponCode: normalizeCouponCode(e.target.value) }))}
+                      className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 font-medium uppercase focus:ring-2 focus:ring-cyan-500"
+                      placeholder="FIRST10"
+                    />
+                  </div>
+                  <div>
+                    <label className="mb-1.5 block text-sm font-bold text-slate-700">CTA Label</label>
+                    <input
+                      required
+                      type="text"
+                      value={promoPopupForm.ctaLabel}
+                      onChange={(e) => setPromoPopupForm((prev) => ({ ...prev, ctaLabel: e.target.value }))}
+                      className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 font-medium focus:ring-2 focus:ring-cyan-500"
+                      placeholder="Copy Offer Code"
+                    />
+                  </div>
+                  <div>
+                    <label className="mb-1.5 block text-sm font-bold text-slate-700">CTA Action</label>
+                    <select
+                      value={promoPopupForm.ctaAction}
+                      onChange={(e) => setPromoPopupForm((prev) => ({ ...prev, ctaAction: e.target.value }))}
+                      className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 font-medium focus:ring-2 focus:ring-cyan-500"
+                    >
+                      <option value="copy_coupon">Copy Coupon</option>
+                      <option value="scroll_fleet">Scroll to Fleet</option>
+                      <option value="dismiss">Dismiss Popup</option>
+                    </select>
+                  </div>
+                </div>
+
+                <div className="grid gap-5 md:grid-cols-3">
+                  <div>
+                    <label className="mb-1.5 block text-sm font-bold text-slate-700">Audience</label>
+                    <select
+                      value={promoPopupForm.audience}
+                      onChange={(e) => setPromoPopupForm((prev) => ({ ...prev, audience: e.target.value }))}
+                      className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 font-medium focus:ring-2 focus:ring-cyan-500"
+                    >
+                      <option value="all">All visitors</option>
+                      <option value="local">Local pricing mode</option>
+                      <option value="international">Tourist pricing mode</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="mb-1.5 block text-sm font-bold text-slate-700">Priority</label>
+                    <input
+                      type="number"
+                      min="0"
+                      value={promoPopupForm.priority}
+                      onChange={(e) => setPromoPopupForm((prev) => ({ ...prev, priority: e.target.value }))}
+                      className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 font-medium focus:ring-2 focus:ring-cyan-500"
+                    />
+                  </div>
+                  <div>
+                    <label className="mb-1.5 block text-sm font-bold text-slate-700">Status</label>
+                    <select
+                      value={promoPopupForm.active ? 'active' : 'disabled'}
+                      onChange={(e) => setPromoPopupForm((prev) => ({ ...prev, active: e.target.value === 'active' }))}
+                      className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 font-medium focus:ring-2 focus:ring-cyan-500"
+                    >
+                      <option value="active">Active</option>
+                      <option value="disabled">Disabled</option>
+                    </select>
+                  </div>
+                </div>
+
+                <div className="grid gap-5 md:grid-cols-2">
+                  <div>
+                    <label className="mb-1.5 block text-sm font-bold text-slate-700">Start Date</label>
+                    <input
+                      type="date"
+                      value={promoPopupForm.startDate}
+                      onChange={(e) => setPromoPopupForm((prev) => ({ ...prev, startDate: e.target.value }))}
+                      className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 font-medium focus:ring-2 focus:ring-cyan-500"
+                    />
+                  </div>
+                  <div>
+                    <label className="mb-1.5 block text-sm font-bold text-slate-700">End Date</label>
+                    <input
+                      type="date"
+                      value={promoPopupForm.endDate}
+                      onChange={(e) => setPromoPopupForm((prev) => ({ ...prev, endDate: e.target.value }))}
+                      className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 font-medium focus:ring-2 focus:ring-cyan-500"
+                    />
+                  </div>
+                </div>
+
+                <label className="flex items-center gap-3 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-bold text-slate-700">
+                  <input
+                    type="checkbox"
+                    checked={promoPopupForm.dismissible}
+                    onChange={(e) => setPromoPopupForm((prev) => ({ ...prev, dismissible: e.target.checked }))}
+                    className="h-4 w-4 rounded border-slate-300 text-cyan-600 focus:ring-cyan-500"
+                  />
+                  Allow visitor to dismiss this popup
+                </label>
+
+                <div className="rounded-2xl border border-cyan-200 bg-cyan-50 px-5 py-4">
+                  <p className="text-xs font-bold uppercase tracking-[0.18em] text-cyan-700">Preview Summary</p>
+                  <p className="mt-2 font-bold text-slate-900">{promoPopupForm.title || 'Promo title'}</p>
+                  <p className="mt-1 text-sm text-slate-600">{promoPopupForm.subtitle || 'Promo subtitle preview appears here.'}</p>
+                  <p className="mt-3 text-xs font-bold uppercase tracking-[0.16em] text-slate-500">
+                    {getPromoPopupAudienceLabel(promoPopupForm.audience)} · {promoPopupForm.ctaLabel || 'CTA'} · Priority {Number(promoPopupForm.priority || 0)}
+                  </p>
+                </div>
+
+                <div className="flex flex-col gap-3 border-t border-slate-200 pt-6 sm:flex-row sm:justify-end">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setPromoPopupModalOpen(false);
+                      setEditingPromoPopup(null);
+                      setPromoPopupForm(EMPTY_PROMO_POPUP_FORM);
+                    }}
+                    className="rounded-xl bg-slate-100 px-5 py-3 font-bold text-slate-700 hover:bg-slate-200"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    className="rounded-xl bg-slate-900 px-5 py-3 font-bold text-white shadow-md hover:bg-slate-800"
+                  >
+                    Save Promo Popup
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        )}
 
         {managingBooking && !verifyingKyc && !viewingVcr && (
           <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
@@ -3688,8 +5901,8 @@ export default function App() {
         )}
 
         {verifyingKyc && (
-          <div className="fixed inset-0 bg-slate-900/80 backdrop-blur-sm z-50 flex items-start justify-center p-4 pt-6 overflow-y-auto">
-            <div className="bg-white rounded-3xl w-full max-w-6xl shadow-2xl overflow-hidden max-h-[90vh] overflow-y-auto">
+          <div className="fixed inset-0 z-[120] flex items-start justify-center overflow-y-auto bg-slate-900/80 p-4 pt-24 pb-6 backdrop-blur-sm sm:pt-28">
+            <div className="bg-white rounded-3xl w-full max-w-6xl shadow-2xl overflow-hidden max-h-[calc(100vh-7rem)] overflow-y-auto sm:max-h-[calc(100vh-8rem)]">
               <div className="bg-purple-900 p-6 flex justify-between items-center text-white sticky top-0 z-10">
                 <h3 className="brand text-xl font-bold flex items-center"><FileCheck className="mr-2"/> Identity Verification Review</h3>
                 <button onClick={() => setVerifyingKyc(null)} className="text-purple-300 hover:text-white"><X size={24}/></button>
@@ -3786,8 +5999,8 @@ export default function App() {
         )}
 
         {viewingVcr && (
-          <div className="fixed inset-0 bg-slate-900/80 backdrop-blur-sm z-50 flex items-start justify-center p-4 pt-6 overflow-y-auto">
-            <div className="bg-white rounded-3xl w-full max-w-6xl shadow-2xl overflow-hidden max-h-[90vh] overflow-y-auto">
+          <div className="fixed inset-0 z-[120] flex items-start justify-center overflow-y-auto bg-slate-900/80 p-4 pt-24 pb-6 backdrop-blur-sm sm:pt-28">
+            <div className="bg-white rounded-3xl w-full max-w-6xl shadow-2xl overflow-hidden max-h-[calc(100vh-7rem)] overflow-y-auto sm:max-h-[calc(100vh-8rem)]">
               <div className="bg-slate-900 p-6 flex justify-between items-center text-white sticky top-0 z-10">
                 <h3 className="brand text-xl font-bold flex items-center"><Camera className="mr-2"/> Initial VCR & E-Agreement</h3>
                 <button onClick={() => setViewingVcr(null)} className="text-slate-400 hover:text-white"><X size={24}/></button>
@@ -3849,8 +6062,8 @@ export default function App() {
         )}
 
         {viewingReturnVcr && (
-          <div className="fixed inset-0 bg-slate-900/80 backdrop-blur-sm z-50 flex items-start justify-center p-4 pt-6 overflow-y-auto">
-            <div className="bg-white rounded-3xl w-full max-w-6xl shadow-2xl overflow-hidden max-h-[90vh] overflow-y-auto">
+          <div className="fixed inset-0 z-[120] flex items-start justify-center overflow-y-auto bg-slate-900/80 p-4 pt-24 pb-6 backdrop-blur-sm sm:pt-28">
+            <div className="bg-white rounded-3xl w-full max-w-6xl shadow-2xl overflow-hidden max-h-[calc(100vh-7rem)] overflow-y-auto sm:max-h-[calc(100vh-8rem)]">
               <div className="bg-orange-900 p-6 flex justify-between items-center text-white sticky top-0 z-10">
                 <h3 className="brand text-xl font-bold flex items-center"><Undo2 className="mr-2"/> Return VCR Inspection</h3>
                 <button onClick={() => setViewingReturnVcr(null)} className="text-orange-300 hover:text-white"><X size={24}/></button>
@@ -4012,6 +6225,11 @@ export default function App() {
                             )}
                           </div>
                           <p className="font-bold text-cyan-600">{booking.car.name}</p>
+                          {booking.customer.coupon?.code && booking.customer.coupon?.discountAmount > 0 && (
+                            <p className="text-xs font-bold text-emerald-600">
+                              Coupon: {booking.customer.coupon.code} (- MYR {booking.customer.coupon.discountAmount})
+                            </p>
+                          )}
                           <div className="mt-1 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-left">
                             <p className="text-[10px] uppercase tracking-[0.16em] text-slate-500 font-bold">Refund Details</p>
                             <p className="text-xs text-slate-700 font-semibold mt-1">
@@ -4544,6 +6762,75 @@ export default function App() {
         {currentView === 'faq' && FaqView()}
         {currentView === 'contact' && ContactView()}
       </main>
+
+      {showPromoPopup && activePromoPopup && currentView === 'home' && (
+        <div className="pointer-events-none fixed inset-x-4 bottom-4 z-[90] sm:inset-x-auto sm:right-6 sm:bottom-6">
+          <div className={`pointer-events-auto w-full max-w-sm overflow-hidden rounded-[28px] border backdrop-blur-xl ${getPromoPopupThemeClasses(activePromoPopup.theme).shell}`}>
+            <div className={`${getPromoPopupThemeClasses(activePromoPopup.theme).hero} px-5 py-4 text-white`}>
+              <div className="flex items-start justify-between gap-4">
+                <div>
+                  <p className={`text-[11px] font-bold uppercase tracking-[0.24em] ${getPromoPopupThemeClasses(activePromoPopup.theme).badgeText}`}>
+                    {activePromoPopup.badge || 'Special Offer'}
+                  </p>
+                  <h3 className="brand mt-2 text-2xl font-bold leading-tight">{activePromoPopup.title}</h3>
+                </div>
+                {activePromoPopup.dismissible !== false && (
+                  <button
+                    type="button"
+                    onClick={handleDismissPromoPopup}
+                    className="rounded-full border border-white/30 bg-white/10 p-2 text-white transition hover:bg-white/20"
+                    aria-label="Close promo popup"
+                  >
+                    <X size={18} />
+                  </button>
+                )}
+              </div>
+            </div>
+            <div className="space-y-4 px-5 py-5">
+              <p className="text-sm leading-relaxed text-slate-600">{activePromoPopup.subtitle}</p>
+              {activePromoPopup.urgencyText && (
+                <p className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm font-bold text-amber-800">
+                  {activePromoPopup.urgencyText}
+                </p>
+              )}
+              {activePromoPopup.couponCode && (
+                <div className={`rounded-2xl border px-4 py-3 ${getPromoPopupThemeClasses(activePromoPopup.theme).codeWrap}`}>
+                  <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-slate-600">Use Coupon Code</p>
+                  <div className="mt-2 flex items-center justify-between gap-3">
+                    <span className={`font-mono text-lg font-bold ${getPromoPopupThemeClasses(activePromoPopup.theme).codeText}`}>
+                      {activePromoPopup.couponCode}
+                    </span>
+                    {activePromoPopupCoupon && (
+                      <span className={`rounded-full px-3 py-1 text-xs font-bold shadow-sm ${getPromoPopupThemeClasses(activePromoPopup.theme).chip}`}>
+                        {summarizeCouponValue(activePromoPopupCoupon)}
+                      </span>
+                    )}
+                  </div>
+                </div>
+              )}
+              <div className="flex flex-col gap-3 sm:flex-row">
+                <button
+                  type="button"
+                  onClick={handlePromoPopupPrimaryAction}
+                  className="inline-flex flex-1 items-center justify-center rounded-2xl bg-slate-900 px-4 py-3 text-sm font-bold text-white transition hover:bg-slate-800"
+                >
+                  {activePromoPopup.ctaAction === 'copy_coupon' ? <Copy size={16} className="mr-2" /> : <ChevronRight size={16} className="mr-2" />}
+                  {activePromoPopup.ctaLabel}
+                </button>
+                {activePromoPopup.dismissible !== false && (
+                  <button
+                    type="button"
+                    onClick={handleDismissPromoPopup}
+                    className="rounded-2xl bg-slate-100 px-4 py-3 text-sm font-bold text-slate-700 transition hover:bg-slate-200"
+                  >
+                    Maybe later
+                  </button>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* POPUP LOGIN ADMIN KETIKA BUTANG ADMIN DITEKAN */}
       {showAdminLogin && (
