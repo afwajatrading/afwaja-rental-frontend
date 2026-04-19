@@ -1823,7 +1823,7 @@ export default function App() {
       customerType: bookingDetails.customerType,
       startDate: bookingDetails.startDate,
       endDate: bookingDetails.endDate,
-      baseDailyRate,
+      baseDailyRate: baseDailyPrice,
     });
     const liveRental = getRentalDurationAndCost(bookingDetails.startDate, bookingDetails.endDate, adjustedBaseRate);
     const matchedCoupon = coupons.find(
@@ -2043,7 +2043,7 @@ export default function App() {
       customerType: bookingDetails.customerType,
       startDate: bookingDetails.startDate,
       endDate: bookingDetails.endDate,
-      baseDailyRate,
+      baseDailyRate: baseDailyPrice,
     });
     
     const { days, extraHours, extraHoursFee, rentalTotal, totalHours, appliedDailyRate, discountTier, discountPercentage } = getRentalDurationAndCost(bookingDetails.startDate, bookingDetails.endDate, adjustedBaseRate);
