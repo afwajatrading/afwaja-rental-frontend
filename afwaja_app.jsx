@@ -1330,7 +1330,7 @@ export default function App() {
       customerType: bookingDetails.customerType,
       startDate: bookingDetails.startDate,
       endDate: bookingDetails.endDate,
-      baseDailyRate,
+      baseDailyRate: baseDailyPrice,
     });
     const liveRental = getRentalDurationAndCost(bookingDetails.startDate, bookingDetails.endDate, adjustedBaseRate);
 
