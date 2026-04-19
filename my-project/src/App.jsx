@@ -3186,21 +3186,9 @@ export default function App() {
                     </div>
                   )}
 
-                  <div className="rounded-2xl border border-white/10 bg-white/5 px-5 py-4 text-white">
-                    <div className="flex items-center justify-between text-sm">
-                      <span>Pickup fee</span>
-                      <span className="font-bold">MYR {bookingDetails.pickupLocationMeta?.fee ?? bookingDetails.pickupFee ?? 0}</span>
-                    </div>
-                    <div className="flex items-center justify-between text-sm mt-2">
-                      <span>Return fee</span>
-                      <span className="font-bold">MYR {bookingDetails.returnLocationMeta?.fee ?? bookingDetails.returnFee ?? 0}</span>
-                    </div>
-                    <div className="border-t border-white/10 mt-3 pt-3 flex items-center justify-between">
-                      <span className="text-cyan-200 font-bold">Estimated logistics total</span>
-                      <span className="brand text-2xl text-white font-bold">
-                        MYR {(bookingDetails.pickupLocationMeta?.fee ?? bookingDetails.pickupFee ?? 0) + (bookingDetails.returnLocationMeta?.fee ?? bookingDetails.returnFee ?? 0)}
-                      </span>
-                    </div>
+                  <div className="rounded-2xl border border-white/10 bg-white/5 px-5 py-4 text-white/85">
+                    <p className="text-xs uppercase tracking-[0.2em] text-cyan-200 mb-1 font-bold">Logistics Fee</p>
+                    <p className="font-medium">Delivery and return fee will be shown in the booking form.</p>
                     {bookingDetails.pickupLocationMeta && (
                       <p className="text-xs text-white/65 mt-2">
                         Pickup: {bookingDetails.pickupLocationMeta.distanceLabel}
