@@ -5890,13 +5890,13 @@ export default function App() {
 
         {verifyingKyc && (
           <div className="fixed inset-0 z-[120] flex items-start justify-center overflow-y-auto bg-slate-900/80 p-4 pt-24 pb-6 backdrop-blur-sm sm:pt-28">
-            <div className="bg-white rounded-3xl w-full max-w-6xl shadow-2xl overflow-hidden max-h-[calc(100vh-7rem)] overflow-y-auto sm:max-h-[calc(100vh-8rem)]">
+            <div className="bg-white rounded-3xl w-full max-w-7xl shadow-2xl overflow-hidden max-h-[calc(100vh-7rem)] overflow-y-auto sm:max-h-[calc(100vh-8rem)]">
               <div className="bg-purple-900 p-6 flex justify-between items-center text-white sticky top-0 z-10">
                 <h3 className="brand text-xl font-bold flex items-center"><FileCheck className="mr-2"/> Identity Verification Review</h3>
                 <button onClick={() => setVerifyingKyc(null)} className="text-purple-300 hover:text-white"><X size={24}/></button>
               </div>
               <div className="p-8">
-                <div className="grid gap-8 lg:grid-cols-[minmax(0,1.3fr)_320px]">
+                <div className="grid gap-8 lg:grid-cols-[minmax(0,1.55fr)_340px]">
                   <div>
                     <div className="flex items-center justify-between mb-4">
                       <div>
@@ -5906,20 +5906,20 @@ export default function App() {
                       <div className="bg-yellow-50 text-yellow-700 px-4 py-2 rounded-lg font-bold border border-yellow-200 text-sm">Awaiting Review</div>
                     </div>
 
-                    <div className="grid md:grid-cols-3 gap-6">
+                    <div className="grid gap-6 md:grid-cols-2 xl:grid-cols-3">
                       {[
                         { key: 'ic', label: verifyingKyc.customer.customerType === 'international' ? 'Passport / ID' : 'MyKad (Front)' },
                         { key: 'license', label: verifyingKyc.customer.customerType === 'international' ? 'Driving License / IDP' : 'Driving License' },
                         { key: 'bill', label: verifyingKyc.customer.customerType === 'international' ? 'Flight / Hotel Booking' : 'Utility Bill' }
                       ].map(doc => (
-                        <div key={doc.key} className="border border-slate-200 p-3 rounded-xl bg-slate-50">
+                        <div key={doc.key} className="border border-slate-200 p-4 rounded-2xl bg-slate-50">
                           <p className="text-xs font-bold text-slate-500 uppercase text-center mb-2">{doc.label}</p>
                           <button
                             type="button"
                             onClick={() => setSelectedKycPreview({ src: verifyingKyc.documents?.[doc.key], label: doc.label })}
                             className="w-full text-left"
                           >
-                            <div className="aspect-[4/5] bg-white rounded-lg overflow-hidden border border-slate-200 shadow-sm p-2 flex items-center justify-center transition hover:border-cyan-300 hover:shadow-md">
+                            <div className="aspect-[3/4] min-h-[340px] bg-white rounded-xl overflow-hidden border border-slate-200 shadow-sm p-3 flex items-center justify-center transition hover:border-cyan-300 hover:shadow-md sm:min-h-[420px]">
                               <img src={verifyingKyc.documents?.[doc.key]} alt={doc.key} className="w-full h-full object-contain" />
                             </div>
                             <p className="mt-2 text-center text-[11px] font-bold uppercase tracking-wider text-cyan-700">Click to enlarge</p>
@@ -5958,8 +5958,8 @@ export default function App() {
         )}
 
         {selectedKycPreview && (
-          <div className="fixed inset-0 bg-slate-950/85 backdrop-blur-sm z-[60] flex items-center justify-center p-4">
-            <div className="w-full max-w-5xl">
+          <div className="fixed inset-0 bg-slate-950/85 backdrop-blur-sm z-[130] flex items-center justify-center p-4">
+            <div className="w-full max-w-7xl">
               <div className="flex items-center justify-between mb-4 text-white">
                 <div>
                   <p className="text-xs font-bold uppercase tracking-[0.2em] text-cyan-300">KYC Preview</p>
@@ -5974,11 +5974,11 @@ export default function App() {
                 </button>
               </div>
               <div className="bg-white rounded-3xl shadow-2xl p-4 sm:p-6">
-                <div className="bg-slate-100 rounded-2xl border border-slate-200 min-h-[60vh] flex items-center justify-center overflow-hidden">
+                <div className="bg-slate-100 rounded-2xl border border-slate-200 min-h-[75vh] flex items-center justify-center overflow-hidden">
                   <img
                     src={selectedKycPreview.src}
                     alt={selectedKycPreview.label}
-                    className="max-w-full max-h-[75vh] object-contain"
+                    className="max-w-full max-h-[85vh] object-contain"
                   />
                 </div>
               </div>
