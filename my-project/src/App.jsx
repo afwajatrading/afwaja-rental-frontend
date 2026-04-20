@@ -5836,8 +5836,8 @@ export default function App() {
         )}
 
         {managingBooking && !verifyingKyc && !viewingVcr && (
-          <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-            <div className="bg-white rounded-3xl w-full max-w-2xl shadow-2xl overflow-hidden max-h-[90vh] overflow-y-auto">
+          <div className="fixed inset-0 z-[120] flex items-start justify-center overflow-y-auto bg-slate-900/60 p-4 pt-24 pb-6 backdrop-blur-sm sm:pt-28">
+            <div className="bg-white rounded-3xl w-full max-w-2xl shadow-2xl overflow-hidden max-h-[calc(100vh-7rem)] overflow-y-auto sm:max-h-[calc(100vh-8rem)]">
               <div className="bg-slate-900 p-6 flex justify-between items-center text-white sticky top-0 z-10">
                 <h3 className="brand text-xl font-bold">Fulfillment Assignment</h3>
                 <button onClick={() => setManagingBooking(null)} className="text-slate-400 hover:text-white"><X size={24}/></button>
