@@ -5959,29 +5959,25 @@ export default function App() {
         )}
 
         {selectedKycPreview && (
-          <div className="fixed inset-0 bg-slate-950/85 backdrop-blur-sm z-[130] flex items-center justify-center p-4">
-            <div className="w-full max-w-7xl">
-              <div className="flex items-center justify-between mb-4 text-white">
-                <div>
-                  <p className="text-xs font-bold uppercase tracking-[0.2em] text-cyan-300">KYC Preview</p>
-                  <h3 className="brand text-2xl font-bold">{selectedKycPreview.label}</h3>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => setSelectedKycPreview(null)}
-                  className="w-11 h-11 rounded-full border border-white/20 bg-white/10 flex items-center justify-center hover:bg-white/20 transition"
-                >
-                  <X size={22} />
-                </button>
+          <div className="fixed inset-0 z-[130] flex items-start justify-center overflow-y-auto bg-slate-950/85 p-4 pt-24 pb-6 backdrop-blur-sm sm:pt-28">
+            <div className="relative w-full max-w-6xl">
+              <button
+                type="button"
+                onClick={() => setSelectedKycPreview(null)}
+                className="absolute right-2 top-2 z-10 flex h-11 w-11 items-center justify-center rounded-full border border-white/20 bg-slate-950/75 text-white shadow-lg transition hover:bg-slate-900"
+              >
+                <X size={22} />
+              </button>
+              <div className="mb-3 pr-14 text-white">
+                <p className="text-xs font-bold uppercase tracking-[0.2em] text-cyan-300">KYC Preview</p>
+                <h3 className="brand text-2xl font-bold">{selectedKycPreview.label}</h3>
               </div>
-              <div className="bg-white rounded-3xl shadow-2xl p-4 sm:p-6">
-                <div className="bg-slate-100 rounded-2xl border border-slate-200 min-h-[75vh] flex items-center justify-center overflow-hidden">
-                  <img
-                    src={selectedKycPreview.src}
-                    alt={selectedKycPreview.label}
-                    className="max-w-full max-h-[85vh] object-contain"
-                  />
-                </div>
+              <div className="flex min-h-[calc(100vh-10rem)] items-center justify-center overflow-hidden rounded-3xl border border-white/10 bg-white/95 p-3 shadow-2xl sm:min-h-[calc(100vh-11rem)] sm:p-4">
+                <img
+                  src={selectedKycPreview.src}
+                  alt={selectedKycPreview.label}
+                  className="max-h-[calc(100vh-12rem)] max-w-full rounded-2xl object-contain sm:max-h-[calc(100vh-13rem)]"
+                />
               </div>
             </div>
           </div>
