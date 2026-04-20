@@ -2762,10 +2762,16 @@ export default function App() {
     setKycUploading(true);
     try {
       const bookingRef = doc(db, 'artifacts', appId, 'public', 'data', 'bookings', trackedBooking.docId);
+      const [icUrl, licenseUrl, billUrl] = await Promise.all([
+        uploadFileToStorage(uploadedDocs.ic, `kyc/${trackedBooking.id}/ic.jpg`),
+        uploadFileToStorage(uploadedDocs.license, `kyc/${trackedBooking.id}/license.jpg`),
+        uploadFileToStorage(uploadedDocs.bill, `kyc/${trackedBooking.id}/bill.jpg`),
+      ]);
+
       await updateDoc(bookingRef, {
-        'documents.ic': uploadedDocs.ic,
-        'documents.license': uploadedDocs.license,
-        'documents.bill': uploadedDocs.bill,
+        'documents.ic': icUrl,
+        'documents.license': licenseUrl,
+        'documents.bill': billUrl,
         'documents.status': 'submitted'
       });
       showNotification('Documents submitted for Admin review.', 'success');
