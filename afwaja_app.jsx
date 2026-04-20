@@ -379,7 +379,16 @@ const readFileAsDataUrl = (file) =>
     reader.readAsDataURL(file);
   });
 
-const processImageWithWatermark = async (file) => {
+const processImageWithWatermark = async (
+  file,
+  {
+    maxDimension = 240,
+    quality = 0.2,
+    outputFormat = 'image/jpeg',
+    watermarkOpacity = 0.5,
+    fontDivisor = 15,
+  } = {}
+) => {
   const sourceDataUrl = await readFileAsDataUrl(file);
   if (!sourceDataUrl) return null;
 
@@ -388,17 +397,15 @@ const processImageWithWatermark = async (file) => {
     img.onload = () => {
       try {
         const canvas = document.createElement('canvas');
-        // Use a smaller maximum dimension for mobile stability during VCR capture and upload.
-        const MAX_DIMENSION = 240;
         let width = img.width;
         let height = img.height;
 
-        if (width > height && width > MAX_DIMENSION) {
-          height = Math.round((height * MAX_DIMENSION) / width);
-          width = MAX_DIMENSION;
-        } else if (height >= width && height > MAX_DIMENSION) {
-          width = Math.round((width * MAX_DIMENSION) / height);
-          height = MAX_DIMENSION;
+        if (width > height && width > maxDimension) {
+          height = Math.round((height * maxDimension) / width);
+          width = maxDimension;
+        } else if (height >= width && height > maxDimension) {
+          width = Math.round((width * maxDimension) / height);
+          height = maxDimension;
         }
 
         canvas.width = width;
@@ -415,9 +422,9 @@ const processImageWithWatermark = async (file) => {
         ctx.translate(width / 2, height / 2);
         ctx.rotate(-Math.PI / 4);
 
-        const fontSize = Math.floor(width / 15);
+        const fontSize = Math.max(14, Math.floor(width / fontDivisor));
         ctx.font = `bold ${fontSize}px 'Space Grotesk', sans-serif`;
-        ctx.fillStyle = "rgba(255, 255, 255, 0.5)";
+        ctx.fillStyle = `rgba(255, 255, 255, ${watermarkOpacity})`;
         ctx.textAlign = "center";
         ctx.textBaseline = "middle";
         ctx.shadowColor = "rgba(0, 0, 0, 0.5)";
@@ -432,8 +439,7 @@ const processImageWithWatermark = async (file) => {
 
         ctx.restore();
 
-        // Use more aggressive JPEG compression to reduce memory pressure on mobile devices.
-        resolve(canvas.toDataURL('image/jpeg', 0.2));
+        resolve(canvas.toDataURL(outputFormat, quality));
       } catch (error) {
         console.warn('Watermark processing fallback applied for image upload.', error);
         resolve(sourceDataUrl);
@@ -2733,7 +2739,13 @@ export default function App() {
     const file = e.target.files[0];
     if (!file) return;
     showNotification(`Processing watermark for ${type}...`, 'info');
-    const watermarkedBase64 = await processImageWithWatermark(file);
+    const watermarkedBase64 = await processImageWithWatermark(file, {
+      maxDimension: 1800,
+      quality: 0.92,
+      outputFormat: 'image/jpeg',
+      watermarkOpacity: 0.18,
+      fontDivisor: 28,
+    });
     if (watermarkedBase64) {
       setUploadedDocs(prev => ({ ...prev, [type]: watermarkedBase64 }));
     } else {
