@@ -172,6 +172,12 @@ const MALAYSIAN_BANK_OPTIONS = [
   'UOB Malaysia',
 ];
 
+const isDummyBookingRecord = (booking = {}) => {
+  const bookingId = String(booking.id || '');
+  const customerEmail = String(booking.customer?.email || '').toLowerCase();
+  return customerEmail === 'dummy@test.com' || /^AFW-(PENDING|REFUNDED)-/i.test(bookingId);
+};
+
 const HERO_PROMO_SLIDES = [
   {
     tag: '3+ Days Discount',
@@ -1755,7 +1761,7 @@ export default function App() {
       const fetchedBookings = snapshot.docs.map(doc => ({
         docId: doc.id,
         ...doc.data()
-      }));
+      })).filter((booking) => !isDummyBookingRecord(booking));
       fetchedBookings.sort((a, b) => new Date(b.date) - new Date(a.date));
       setBookings(fetchedBookings);
     }, (error) => {
@@ -2665,73 +2671,6 @@ export default function App() {
     } catch (error) {
       console.error(error);
       showNotification('Unable to update promo popup status.', 'error');
-    }
-  };
-
-  const handleInjectDummyData = async () => {
-    if (!user) return;
-    const pendingId = `AFW-PENDING-${Math.floor(1000 + Math.random() * 9000)}`;
-    const refundedId = `AFW-REFUNDED-${Math.floor(1000 + Math.random() * 9000)}`;
-    const placeholderVcr = "https://via.placeholder.com/400x300.png?text=VCR+Photo";
-    const placeholderDoc = "https://via.placeholder.com/400x300.png?text=KYC+Document";
-
-    const baseCustomer = {
-      email: 'dummy@test.com',
-      phone: '0123456789',
-      startDate: new Date(Date.now() - 86400000 * 2).toISOString(), 
-      endDate: new Date(Date.now() - 3600000).toISOString(), 
-      pickupLocation: 'HQ (Cyberjaya)',
-      returnLocation: 'HQ (Cyberjaya)',
-      destination: 'Kuala Lumpur',
-      pickupFee: 0,
-      returnFee: 0,
-      totalDays: 2,
-      extraHours: 0,
-      extraHoursFee: 0,
-      totalPrice: 270,
-      appliedDailyRate: 135,
-      discountTier: 'Normal',
-      discountPercentage: 0,
-      deposit: 100,
-      grandTotal: 370,
-      customerType: 'local',
-      paymentMethod: 'fpx'
-    };
-
-    const dummyPending = {
-      id: pendingId,
-      car: INITIAL_CARS[0], 
-      customer: { ...baseCustomer, name: 'Ahmad (Test Return)' },
-      date: new Date(Date.now() - 86400000 * 3).toISOString(), 
-      status: 'Return_Pending', 
-      supplier: { name: 'Afwaja (Own Fleet)', cost: 0, type: 'self' },
-      profit: 270,
-      documents: { ic: placeholderDoc, license: placeholderDoc, bill: placeholderDoc, status: 'verified' },
-      vcr: { front: placeholderVcr, back: placeholderVcr, left: placeholderVcr, right: placeholderVcr, odometer: placeholderVcr, signature: placeholderVcr, status: 'completed' },
-      returnVcr: { front: placeholderVcr, back: placeholderVcr, left: placeholderVcr, right: placeholderVcr, odometer: placeholderVcr, status: 'submitted' }
-    };
-
-    const dummyRefunded = {
-      id: refundedId,
-      car: INITIAL_CARS[2], 
-      customer: { ...baseCustomer, name: 'Siti (Test Refunded)', deposit: 100, grandTotal: 420, totalPrice: 320, appliedDailyRate: 160 },
-      date: new Date(Date.now() - 86400000 * 4).toISOString(), 
-      status: 'Returned', 
-      supplier: { name: 'Afwaja (Own Fleet)', cost: 0, type: 'self' },
-      profit: 320,
-      documents: { ic: placeholderDoc, license: placeholderDoc, bill: placeholderDoc, status: 'verified' },
-      vcr: { front: placeholderVcr, back: placeholderVcr, left: placeholderVcr, right: placeholderVcr, odometer: placeholderVcr, signature: placeholderVcr, status: 'completed' },
-      returnVcr: { front: placeholderVcr, back: placeholderVcr, left: placeholderVcr, right: placeholderVcr, odometer: placeholderVcr, status: 'submitted' }
-    };
-
-    try {
-      const bookingsRef = collection(db, 'artifacts', appId, 'public', 'data', 'bookings');
-      await addDoc(bookingsRef, dummyPending);
-      await addDoc(bookingsRef, dummyRefunded);
-      showNotification('Dummy data injected successfully!', 'success');
-    } catch (err) {
-      console.error(err);
-      showNotification('Failed to inject dummy data', 'error');
     }
   };
 
@@ -4798,9 +4737,6 @@ export default function App() {
           <h1 className="brand text-3xl sm:text-4xl font-bold text-slate-900 flex items-center">
             <LayoutDashboard className="mr-3 text-cyan-600 w-8 h-8"/> Admin Portal
           </h1>
-          <button onClick={handleInjectDummyData} className="bg-indigo-600 text-white px-5 py-2.5 rounded-xl text-sm font-bold flex items-center shadow-lg hover:bg-indigo-700 hover:scale-105 transition-all">
-            <Sparkles size={16} className="mr-2"/> Inject Dummy Data
-          </button>
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-10">
