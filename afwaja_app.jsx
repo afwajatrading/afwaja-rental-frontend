@@ -1721,7 +1721,8 @@ export default function App() {
         } else if (toyyibStatus === '2' && bookingId) {
           setCurrentBookingId(bookingId);
           setCurrentView('home');
-          showNotification('Payment is still pending confirmation.', 'info');
+          await syncPaymentStatusFromGatewayReturn(bookingId, 'failed');
+          showNotification('Payment was not completed.', 'error');
         } else if ((status === 'cancelled' || toyyibStatus === '3') && bookingId) {
           setCurrentBookingId(bookingId);
           setCurrentView('home');
