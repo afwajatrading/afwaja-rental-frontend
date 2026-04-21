@@ -1332,6 +1332,13 @@ export default function App() {
       return false;
     }
 
+    if (coupons.length === 0) {
+      const loadingMessage = 'Promotions are still syncing. Please try applying the coupon again in a moment.';
+      setCouponFeedback({ type: 'error', message: loadingMessage });
+      showNotification(loadingMessage, 'error');
+      return false;
+    }
+
     const couponCode = normalizeCouponCode(rawCode || couponInput);
     if (!couponCode) {
       setCouponFeedback({ type: 'error', message: 'Please enter a coupon code.' });
@@ -1820,6 +1827,28 @@ export default function App() {
   }, [user]);
 
   useEffect(() => {
+    if (!user || coupons.length > 0) return;
+
+    const hydrateCoupons = async () => {
+      try {
+        const couponsSnapshot = await getDocs(collection(db, ...getCouponCollectionPath(appId)));
+        const fetchedCoupons = couponsSnapshot.docs.map((couponDoc) => ({
+          docId: couponDoc.id,
+          ...couponDoc.data(),
+        }));
+        fetchedCoupons.sort((a, b) => normalizeCouponCode(a.code).localeCompare(normalizeCouponCode(b.code)));
+        if (fetchedCoupons.length > 0) {
+          setCoupons(fetchedCoupons);
+        }
+      } catch (error) {
+        console.error('Error hydrating coupons:', error);
+      }
+    };
+
+    hydrateCoupons();
+  }, [user, coupons.length]);
+
+  useEffect(() => {
     if (!user) return;
     const seasonalRef = collection(db, ...getSeasonalCollectionPath(appId));
     const unsubscribe = onSnapshot(seasonalRef, (snapshot) => {
@@ -1840,6 +1869,32 @@ export default function App() {
   }, [user]);
 
   useEffect(() => {
+    if (!user || seasonalPricings.length > 0) return;
+
+    const hydrateSeasonalPricing = async () => {
+      try {
+        const seasonalSnapshot = await getDocs(collection(db, ...getSeasonalCollectionPath(appId)));
+        const fetchedSeasons = seasonalSnapshot.docs.map((seasonDoc) => ({
+          docId: seasonDoc.id,
+          ...seasonDoc.data(),
+        }));
+        fetchedSeasons.sort((a, b) => {
+          const priorityDiff = Number(b.priority || 0) - Number(a.priority || 0);
+          if (priorityDiff !== 0) return priorityDiff;
+          return new Date(b.updatedAt || b.createdAt || 0) - new Date(a.updatedAt || a.createdAt || 0);
+        });
+        if (fetchedSeasons.length > 0) {
+          setSeasonalPricings(fetchedSeasons);
+        }
+      } catch (error) {
+        console.error('Error hydrating seasonal pricing:', error);
+      }
+    };
+
+    hydrateSeasonalPricing();
+  }, [user, seasonalPricings.length]);
+
+  useEffect(() => {
     if (!user) return;
     const promoPopupsRef = collection(db, ...getPromoPopupCollectionPath(appId));
     const unsubscribe = onSnapshot(promoPopupsRef, (snapshot) => {
@@ -1858,6 +1913,32 @@ export default function App() {
     });
     return () => unsubscribe();
   }, [user]);
+
+  useEffect(() => {
+    if (!user || promoPopups.length > 0) return;
+
+    const hydratePromoPopups = async () => {
+      try {
+        const promoSnapshot = await getDocs(collection(db, ...getPromoPopupCollectionPath(appId)));
+        const fetchedPromoPopups = promoSnapshot.docs.map((promoDoc) => ({
+          docId: promoDoc.id,
+          ...promoDoc.data(),
+        }));
+        fetchedPromoPopups.sort((a, b) => {
+          const priorityDiff = Number(b.priority || 0) - Number(a.priority || 0);
+          if (priorityDiff !== 0) return priorityDiff;
+          return new Date(b.updatedAt || b.createdAt || 0) - new Date(a.updatedAt || a.createdAt || 0);
+        });
+        if (fetchedPromoPopups.length > 0) {
+          setPromoPopups(fetchedPromoPopups);
+        }
+      } catch (error) {
+        console.error('Error hydrating promo popups:', error);
+      }
+    };
+
+    hydratePromoPopups();
+  }, [user, promoPopups.length]);
 
   useEffect(() => {
     if (!bookingDetails.coupon?.code || !selectedCar) return;
