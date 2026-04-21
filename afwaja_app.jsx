@@ -1811,7 +1811,6 @@ export default function App() {
   }, [user]);
 
   useEffect(() => {
-    if (!user) return;
     const couponsRef = collection(db, ...getCouponCollectionPath(appId));
     const unsubscribe = onSnapshot(couponsRef, (snapshot) => {
       const fetchedCoupons = snapshot.docs.map((couponDoc) => ({
@@ -1824,10 +1823,10 @@ export default function App() {
       console.error('Error fetching coupons:', error);
     });
     return () => unsubscribe();
-  }, [user]);
+  }, [appId]);
 
   useEffect(() => {
-    if (!user || coupons.length > 0) return;
+    if (coupons.length > 0) return;
 
     const hydrateCoupons = async () => {
       try {
@@ -1846,10 +1845,9 @@ export default function App() {
     };
 
     hydrateCoupons();
-  }, [user, coupons.length]);
+  }, [appId, coupons.length]);
 
   useEffect(() => {
-    if (!user) return;
     const seasonalRef = collection(db, ...getSeasonalCollectionPath(appId));
     const unsubscribe = onSnapshot(seasonalRef, (snapshot) => {
       const fetchedSeasons = snapshot.docs.map((seasonDoc) => ({
@@ -1866,10 +1864,10 @@ export default function App() {
       console.error('Error fetching seasonal pricing:', error);
     });
     return () => unsubscribe();
-  }, [user]);
+  }, [appId]);
 
   useEffect(() => {
-    if (!user || seasonalPricings.length > 0) return;
+    if (seasonalPricings.length > 0) return;
 
     const hydrateSeasonalPricing = async () => {
       try {
@@ -1892,10 +1890,9 @@ export default function App() {
     };
 
     hydrateSeasonalPricing();
-  }, [user, seasonalPricings.length]);
+  }, [appId, seasonalPricings.length]);
 
   useEffect(() => {
-    if (!user) return;
     const promoPopupsRef = collection(db, ...getPromoPopupCollectionPath(appId));
     const unsubscribe = onSnapshot(promoPopupsRef, (snapshot) => {
       const fetchedPromoPopups = snapshot.docs.map((promoDoc) => ({
@@ -1912,10 +1909,10 @@ export default function App() {
       console.error('Error fetching promo popups:', error);
     });
     return () => unsubscribe();
-  }, [user]);
+  }, [appId]);
 
   useEffect(() => {
-    if (!user || promoPopups.length > 0) return;
+    if (promoPopups.length > 0) return;
 
     const hydratePromoPopups = async () => {
       try {
@@ -1938,7 +1935,7 @@ export default function App() {
     };
 
     hydratePromoPopups();
-  }, [user, promoPopups.length]);
+  }, [appId, promoPopups.length]);
 
   useEffect(() => {
     if (!bookingDetails.coupon?.code || !selectedCar) return;
