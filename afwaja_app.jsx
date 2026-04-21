@@ -1520,6 +1520,23 @@ export default function App() {
     });
   };
 
+  const openDatePicker = (inputRef) => {
+    const input = inputRef?.current;
+    if (!input) return;
+
+    if (typeof input.showPicker === 'function') {
+      try {
+        input.showPicker();
+        return;
+      } catch (error) {
+        console.warn('showPicker unavailable on this device, falling back to focus/click.', error);
+      }
+    }
+
+    input.focus();
+    input.click?.();
+  };
+
   const handleSelectSuggestedLocation = async (suggestion) => {
     try {
       setLocationSearchLoading(true);
@@ -3169,24 +3186,21 @@ export default function App() {
                       <p className="text-xs uppercase tracking-[0.22em] text-cyan-200 font-bold mb-3">Pickup</p>
                       <div className="grid sm:grid-cols-[1.3fr_0.9fr] gap-3">
                         <div className="relative">
-                          <button
-                            type="button"
-                            onClick={() => pickupDateInputRef.current?.showPicker?.()}
-                            className="w-full bg-white text-slate-900 rounded-2xl px-5 py-4 flex items-center justify-between gap-3 shadow-lg shadow-black/10 text-left"
-                          >
+                          <div className="w-full bg-white text-slate-900 rounded-2xl px-5 py-4 flex items-center justify-between gap-3 shadow-lg shadow-black/10 text-left">
                             <span className="flex items-center gap-3">
                               <Calendar className="text-cyan-600 flex-shrink-0" size={20} />
                               <span className="font-medium">{formatDateForInputDisplay(pickupDateValue)}</span>
                             </span>
-                          </button>
+                          </div>
                           <input
                             ref={pickupDateInputRef}
                             type="date"
                             value={pickupDateValue}
                             min={new Date().toISOString().slice(0, 10)}
                             onChange={(e) => updateHomepageDateTime('startDate', 'date', e.target.value, false)}
-                            className="absolute inset-0 opacity-0 pointer-events-none"
-                            tabIndex={-1}
+                            onClick={() => openDatePicker(pickupDateInputRef)}
+                            className="absolute inset-0 z-10 cursor-pointer opacity-0"
+                            aria-label="Select pickup date"
                           />
                         </div>
                         <label className="bg-white rounded-2xl px-5 py-4 flex items-center gap-3 shadow-lg shadow-black/10">
@@ -3211,24 +3225,21 @@ export default function App() {
                       <p className="text-xs uppercase tracking-[0.22em] text-cyan-200 font-bold mb-3">Return</p>
                       <div className="grid sm:grid-cols-[1.3fr_0.9fr] gap-3">
                         <div className="relative">
-                          <button
-                            type="button"
-                            onClick={() => returnDateInputRef.current?.showPicker?.()}
-                            className="w-full bg-white text-slate-900 rounded-2xl px-5 py-4 flex items-center justify-between gap-3 shadow-lg shadow-black/10 text-left"
-                          >
+                          <div className="w-full bg-white text-slate-900 rounded-2xl px-5 py-4 flex items-center justify-between gap-3 shadow-lg shadow-black/10 text-left">
                             <span className="flex items-center gap-3">
                               <Calendar className="text-cyan-600 flex-shrink-0" size={20} />
                               <span className="font-medium">{formatDateForInputDisplay(returnDateValue)}</span>
                             </span>
-                          </button>
+                          </div>
                           <input
                             ref={returnDateInputRef}
                             type="date"
                             value={returnDateValue}
                             min={pickupDateValue || new Date().toISOString().slice(0, 10)}
                             onChange={(e) => updateHomepageDateTime('endDate', 'date', e.target.value, false)}
-                            className="absolute inset-0 opacity-0 pointer-events-none"
-                            tabIndex={-1}
+                            onClick={() => openDatePicker(returnDateInputRef)}
+                            className="absolute inset-0 z-10 cursor-pointer opacity-0"
+                            aria-label="Select return date"
                           />
                         </div>
                         <label className="bg-white rounded-2xl px-5 py-4 flex items-center gap-3 shadow-lg shadow-black/10">
@@ -3855,14 +3866,10 @@ export default function App() {
                     <label className="block text-sm font-bold text-slate-700 mb-1.5">Pickup Date & Time</label>
                     <div className="grid sm:grid-cols-[1.3fr_0.9fr] gap-3">
                       <div className="relative">
-                        <button
-                          type="button"
-                          onClick={() => bookingPickupDateInputRef.current?.showPicker?.()}
-                          className="w-full bg-white border border-slate-200 rounded-xl px-4 py-3 text-slate-900 font-medium flex items-center gap-3 text-left"
-                        >
+                        <div className="w-full bg-white border border-slate-200 rounded-xl px-4 py-3 text-slate-900 font-medium flex items-center gap-3 text-left">
                           <Calendar className="text-cyan-600 flex-shrink-0" size={18} />
                           <span>{formatDateForInputDisplay(getDatePart(bookingDetails.startDate))}</span>
-                        </button>
+                        </div>
                         <input
                           ref={bookingPickupDateInputRef}
                           required
@@ -3870,8 +3877,9 @@ export default function App() {
                           value={getDatePart(bookingDetails.startDate)}
                           min={new Date().toISOString().slice(0, 10)}
                           onChange={e => updateHomepageDateTime('startDate', 'date', e.target.value)}
-                          className="absolute inset-0 opacity-0 pointer-events-none"
-                          tabIndex={-1}
+                          onClick={() => openDatePicker(bookingPickupDateInputRef)}
+                          className="absolute inset-0 z-10 cursor-pointer opacity-0"
+                          aria-label="Select booking pickup date"
                         />
                       </div>
                       <label className="bg-white border border-slate-200 rounded-xl px-4 py-3 flex items-center gap-3">
@@ -3894,14 +3902,10 @@ export default function App() {
                     <label className="block text-sm font-bold text-slate-700 mb-1.5">Return Date & Time</label>
                     <div className="grid sm:grid-cols-[1.3fr_0.9fr] gap-3">
                       <div className="relative">
-                        <button
-                          type="button"
-                          onClick={() => bookingReturnDateInputRef.current?.showPicker?.()}
-                          className="w-full bg-white border border-slate-200 rounded-xl px-4 py-3 text-slate-900 font-medium flex items-center gap-3 text-left"
-                        >
+                        <div className="w-full bg-white border border-slate-200 rounded-xl px-4 py-3 text-slate-900 font-medium flex items-center gap-3 text-left">
                           <Calendar className="text-cyan-600 flex-shrink-0" size={18} />
                           <span>{formatDateForInputDisplay(getDatePart(bookingDetails.endDate))}</span>
-                        </button>
+                        </div>
                         <input
                           ref={bookingReturnDateInputRef}
                           required
@@ -3909,8 +3913,9 @@ export default function App() {
                           value={getDatePart(bookingDetails.endDate)}
                           min={getDatePart(bookingDetails.startDate) || new Date().toISOString().slice(0, 10)}
                           onChange={e => updateHomepageDateTime('endDate', 'date', e.target.value)}
-                          className="absolute inset-0 opacity-0 pointer-events-none"
-                          tabIndex={-1}
+                          onClick={() => openDatePicker(bookingReturnDateInputRef)}
+                          className="absolute inset-0 z-10 cursor-pointer opacity-0"
+                          aria-label="Select booking return date"
                         />
                       </div>
                       <label className="bg-white border border-slate-200 rounded-xl px-4 py-3 flex items-center gap-3">
