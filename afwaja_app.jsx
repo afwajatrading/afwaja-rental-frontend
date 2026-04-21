@@ -2250,9 +2250,24 @@ export default function App() {
     window.scrollTo(0, 0);
   };
 
+  const ensureCustomerSession = async () => {
+    if (auth.currentUser) return auth.currentUser;
+    try {
+      const credentials = await signInAnonymously(auth);
+      return credentials.user;
+    } catch (error) {
+      console.error('Unable to restore anonymous customer session:', error);
+      return null;
+    }
+  };
+
   const handleFinalPaymentSubmit = async (e) => {
     e.preventDefault();
-    if (!user) return showNotification('System is loading...', 'error');
+    const activeUser = user || await ensureCustomerSession();
+    if (!activeUser) {
+      showNotification('System is still reconnecting. Please try again in a moment.', 'error');
+      return;
+    }
 
     const isLocal = bookingDetails.customerType === 'local';
     setActiveGateway(isLocal ? 'ToyyibPay (FPX)' : 'Stripe Checkout');
