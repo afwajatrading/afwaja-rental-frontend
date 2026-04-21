@@ -2559,7 +2559,6 @@ export default function App() {
         showNotification('Welcome back, Admin!', 'success');
       } else {
         await signOut(auth);
-        await signInAnonymously(auth);
         setAdminPassword('');
         showNotification('This account is not authorized for admin access.', 'error');
       }
@@ -2575,7 +2574,6 @@ export default function App() {
   const handleAdminLogout = async () => {
     try {
       await signOut(auth);
-      await signInAnonymously(auth);
     } catch (error) {
       console.error('Admin logout failed:', error);
       showNotification('Unable to exit admin mode right now.', 'error');
