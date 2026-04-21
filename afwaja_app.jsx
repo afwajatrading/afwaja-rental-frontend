@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { initializeApp } from 'firebase/app';
-import { getAuth, signInAnonymously, onAuthStateChanged, signInWithCustomToken } from 'firebase/auth';
+import { getAuth, signInAnonymously, onAuthStateChanged, signInWithCustomToken, signInWithEmailAndPassword, signOut, getIdTokenResult } from 'firebase/auth';
 import { getFirestore, collection, addDoc, updateDoc, setDoc, doc, onSnapshot, getDoc, getDocs, query, where } from 'firebase/firestore';
 import { getStorage, ref, uploadString, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { 
@@ -1057,7 +1057,9 @@ export default function App() {
   const [currentView, setCurrentView] = useState(gatewayReturnState.initialView);
   const [isAdmin, setIsAdmin] = useState(false);
   const [showAdminLogin, setShowAdminLogin] = useState(gatewayReturnState.openAdminLogin);
-  const [adminPin, setAdminPin] = useState('');
+  const [adminEmail, setAdminEmail] = useState('');
+  const [adminPassword, setAdminPassword] = useState('');
+  const [adminAuthLoading, setAdminAuthLoading] = useState(false);
   const [cars, setCars] = useState(INITIAL_CARS);
   const [bookings, setBookings] = useState([]);
   const [coupons, setCoupons] = useState([]);
@@ -1648,19 +1650,47 @@ export default function App() {
 
   // --- USE EFFECTS ---
   useEffect(() => {
+    const ensureAnonymousSession = async () => {
+      if (auth.currentUser) return;
+      await signInAnonymously(auth);
+    };
+
     const initAuth = async () => {
       try {
         if (typeof globalThis.__initial_auth_token !== 'undefined' && globalThis.__initial_auth_token) {
           await signInWithCustomToken(auth, globalThis.__initial_auth_token);
         } else {
-          await signInAnonymously(auth);
+          await ensureAnonymousSession();
         }
       } catch (error) {
         console.error("Auth init error:", error);
       }
     };
+
     initAuth();
-    const unsubscribe = onAuthStateChanged(auth, setUser);
+
+    const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
+      setUser(currentUser);
+
+      if (!currentUser) {
+        setIsAdmin(false);
+        try {
+          await ensureAnonymousSession();
+        } catch (error) {
+          console.error('Anonymous session restore error:', error);
+        }
+        return;
+      }
+
+      try {
+        const tokenResult = await getIdTokenResult(currentUser, true);
+        setIsAdmin(Boolean(tokenResult.claims?.admin));
+      } catch (error) {
+        console.error('Unable to read auth claims:', error);
+        setIsAdmin(false);
+      }
+    });
+
     return () => unsubscribe();
   }, []);
 
@@ -2510,25 +2540,51 @@ export default function App() {
   };
 
   const handleAdminLogin = async () => {
-    try {
-      const configRef = doc(db, 'artifacts', appId, 'public', 'data', 'config', 'admin');
-      const configSnap = await getDoc(configRef);
-      const validPin = configSnap.exists() ? configSnap.data().pin : '888888';
+    if (!adminEmail.trim() || !adminPassword) {
+      showNotification('Please enter your admin email and password.', 'error');
+      return;
+    }
 
-      if (adminPin === validPin) {
+    setAdminAuthLoading(true);
+    try {
+      const credentials = await signInWithEmailAndPassword(auth, adminEmail.trim(), adminPassword);
+      const tokenResult = await getIdTokenResult(credentials.user, true);
+
+      if (tokenResult.claims?.admin) {
         setIsAdmin(true);
         setShowAdminLogin(false);
-        setAdminPin('');
+        setAdminEmail('');
+        setAdminPassword('');
         setCurrentView('admin');
         showNotification('Welcome back, Admin!', 'success');
       } else {
-        showNotification('Invalid PIN!', 'error');
-        setAdminPin('');
+        await signOut(auth);
+        await signInAnonymously(auth);
+        setAdminPassword('');
+        showNotification('This account is not authorized for admin access.', 'error');
       }
     } catch (error) {
       console.error(error);
-      showNotification('Error checking PIN.', 'error');
+      setAdminPassword('');
+      showNotification('Invalid admin email or password.', 'error');
+    } finally {
+      setAdminAuthLoading(false);
     }
+  };
+
+  const handleAdminLogout = async () => {
+    try {
+      await signOut(auth);
+      await signInAnonymously(auth);
+    } catch (error) {
+      console.error('Admin logout failed:', error);
+      showNotification('Unable to exit admin mode right now.', 'error');
+      return;
+    }
+
+    setIsAdmin(false);
+    setCurrentView('home');
+    showNotification('Admin session ended.', 'info');
   };
 
   const handleDismissPromoPopup = () => {
@@ -2896,8 +2952,7 @@ export default function App() {
             <button 
               onClick={() => {
                 if (isAdmin) {
-                  setIsAdmin(false);
-                  setCurrentView('home');
+                  handleAdminLogout();
                 } else {
                   setShowAdminLogin(true);
                 }
@@ -6775,26 +6830,35 @@ export default function App() {
       {showAdminLogin && (
         <div className="fixed inset-0 bg-slate-900/80 backdrop-blur-sm z-[100] flex items-center justify-center p-4 animate-fadeIn">
           <div className="bg-white p-8 rounded-3xl flex flex-col items-center max-w-sm w-full text-center shadow-2xl relative">
-            <button onClick={() => { setShowAdminLogin(false); setAdminPin(''); }} className="absolute top-4 right-4 text-slate-400 hover:text-slate-600">
+            <button onClick={() => { setShowAdminLogin(false); setAdminEmail(''); setAdminPassword(''); }} className="absolute top-4 right-4 text-slate-400 hover:text-slate-600">
               <X size={20}/>
             </button>
             <div className="w-16 h-16 bg-slate-100 rounded-2xl flex items-center justify-center mb-4">
               <ShieldCheck className="w-8 h-8 text-slate-700" />
             </div>
             <h3 className="brand text-xl font-bold text-slate-900 mb-2">Admin Access</h3>
-            <p className="text-slate-500 font-medium text-sm mb-6">Enter your security PIN to access the dashboard.</p>
+            <p className="text-slate-500 font-medium text-sm mb-6">Sign in with your admin email and password to access the dashboard.</p>
+            <input 
+              type="email"
+              placeholder="Admin email"
+              className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 focus:ring-2 focus:ring-cyan-500 font-medium text-center mb-4"
+              value={adminEmail}
+              onChange={(e) => setAdminEmail(e.target.value)}
+              autoComplete="username"
+            />
             <input 
               type="password" 
-              placeholder="Enter PIN" 
-              className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 focus:ring-2 focus:ring-cyan-500 font-bold text-center tracking-widest text-lg mb-4"
-              value={adminPin}
-              onChange={(e) => setAdminPin(e.target.value)}
+              placeholder="Password" 
+              className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 focus:ring-2 focus:ring-cyan-500 font-bold text-center tracking-wide text-lg mb-4"
+              value={adminPassword}
+              onChange={(e) => setAdminPassword(e.target.value)}
+              autoComplete="current-password"
               onKeyDown={(e) => {
                 if (e.key === 'Enter') handleAdminLogin();
               }}
             />
-            <button onClick={handleAdminLogin} className="w-full bg-slate-900 text-white font-bold py-3 rounded-xl hover:bg-slate-800 transition-all shadow-md">
-              Unlock Dashboard
+            <button onClick={handleAdminLogin} disabled={adminAuthLoading} className="w-full bg-slate-900 text-white font-bold py-3 rounded-xl hover:bg-slate-800 transition-all shadow-md disabled:bg-slate-700 disabled:cursor-not-allowed">
+              {adminAuthLoading ? 'Signing In...' : 'Unlock Dashboard'}
             </button>
           </div>
         </div>
