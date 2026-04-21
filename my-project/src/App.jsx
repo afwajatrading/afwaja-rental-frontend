@@ -1155,6 +1155,7 @@ export default function App() {
   const returnDateInputRef = useRef(null);
   const bookingPickupDateInputRef = useRef(null);
   const bookingReturnDateInputRef = useRef(null);
+  const couponCodeInputRef = useRef(null);
   
   // FIX: Memindahkan state ini dari BookingView ke parent (App) 
   // agar urutan hooks React (Rules of Hooks) tetap konsisten.
@@ -1365,6 +1366,7 @@ export default function App() {
     if (!outcome.valid) {
       upsertBookingCoupon(emptyAppliedCoupon());
       setCouponFeedback({ type: 'error', message: outcome.message });
+      showNotification(outcome.message, 'error');
       return false;
     }
 
@@ -1374,6 +1376,7 @@ export default function App() {
       type: 'success',
       message: `${outcome.summary.code} applied successfully. You saved MYR ${outcome.summary.discountAmount}.`,
     });
+    showNotification(`${outcome.summary.code} applied. You saved MYR ${outcome.summary.discountAmount}.`, 'success');
     return true;
   };
 
@@ -3896,6 +3899,7 @@ export default function App() {
                 </div>
                 <div className="grid gap-3 sm:grid-cols-[1fr_auto_auto]">
                   <input
+                    ref={couponCodeInputRef}
                     type="text"
                     value={couponInput}
                     onChange={(e) => {
@@ -3909,7 +3913,7 @@ export default function App() {
                   />
                   <button
                     type="button"
-                    onClick={() => applyCouponCode(couponInput)}
+                    onClick={() => applyCouponCode(couponCodeInputRef.current?.value || couponInput)}
                     className="px-5 py-3 rounded-xl bg-cyan-600 text-white font-bold hover:bg-cyan-700 transition-colors"
                   >
                     Apply
