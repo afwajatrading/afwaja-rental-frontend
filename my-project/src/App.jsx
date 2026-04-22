@@ -310,7 +310,7 @@ const INITIAL_AGREEMENT_TERMS = [
     title: '1. Booking & Cancellation Policy',
     bullets: [
       'Online bookings will be confirmed via email within one (1) hour. If the vehicle is unavailable, a full refund will be issued.',
-      'Cancellation: 24 hours before pickup = Full Refund. Less than 24 hours or No Show = Strictly No Refund.',
+      'Cancellation: If you wish to cancel your booking more than 24 hours before the scheduled pickup time, you may request a cancellation and receive a full refund. If the cancellation is made less than 24 hours before pickup, or in the event of a no-show, strictly no refund will be given. To request a cancellation, please contact Afwaja Car Rental immediately via WhatsApp or email and provide your Booking ID.',
       'Date changes or rescheduling are subject to vehicle availability.',
       'Vehicle images shown are for illustration only. The assigned vehicle may differ in color or minor specifications, but the same car model will be provided.',
     ],
@@ -4434,6 +4434,15 @@ export default function App() {
                 </div>
               </div>
 
+              {['Paid_Pending', 'Completed'].includes(trackedBooking.status) && (
+                <div className="mb-8 rounded-2xl border border-amber-200 bg-amber-50 px-5 py-4">
+                  <p className="text-sm font-bold text-amber-900 mb-1">Need to cancel your booking?</p>
+                  <p className="text-sm text-amber-800">
+                    For cancellation assistance, contact us via WhatsApp at +6011-15122092 or via email at afwajatrading@gmail.com and provide your Booking ID.
+                  </p>
+                </div>
+              )}
+
               {(trackedBooking.status === 'Paid_Pending' || trackedBooking.status === 'Completed' || trackedBooking.status === 'Active' || trackedBooking.status === 'Returned') && (
                 <div className="mt-8 border-t border-slate-200 pt-8">
                   <h3 className="font-bold text-slate-900 text-lg mb-2 flex items-center"><ShieldCheck className="mr-2 text-cyan-600"/> Identity Verification (KYC)</h3>
@@ -6450,7 +6459,7 @@ export default function App() {
             <h3 className="text-xl font-bold text-slate-900 mb-3 flex items-center gap-2"><Calendar className="text-cyan-600"/> 1. Booking & Cancellation Policy</h3>
             <ul className="list-disc pl-5 space-y-2">
               <li>Online bookings will be confirmed via email within one (1) hour. If the vehicle is unavailable, a full refund will be issued.</li>
-              <li><strong>Cancellation:</strong> 24 hours before pickup = Full Refund. Less than 24 hours or No Show = Strictly No Refund.</li>
+              <li><strong>Cancellation:</strong> If you wish to cancel your booking more than 24 hours before the scheduled pickup time, you may request a cancellation and receive a full refund. If the cancellation is made less than 24 hours before pickup, or in the event of a no-show, strictly no refund will be given. To request a cancellation, please contact Afwaja Car Rental immediately via WhatsApp or email and provide your Booking ID.</li>
               <li>Date changes or rescheduling are subject to vehicle availability.</li>
               <li><strong>Vehicle Allocation & Display:</strong> Images shown on the website are for illustration and reference purposes only. The actual vehicle assigned may differ in color and minor specifications, but we guarantee the same car model will be provided.</li>
             </ul>
