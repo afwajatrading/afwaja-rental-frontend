@@ -1157,7 +1157,6 @@ export default function App() {
   const bookingReturnDateInputRef = useRef(null);
   const couponCodeInputRef = useRef(null);
   const bookingLogsBottomScrollRef = useRef(null);
-  const [bookingLogsScrollProgress, setBookingLogsScrollProgress] = useState(0);
   const [bookingLogsHasOverflow, setBookingLogsHasOverflow] = useState(false);
   
   // FIX: Memindahkan state ini dari BookingView ke parent (App) 
@@ -1540,30 +1539,14 @@ export default function App() {
     input.click?.();
   };
 
-  const handleBookingLogsSliderChange = (event) => {
+  const handleBookingLogsNav = (direction) => {
     const bottomScroller = bookingLogsBottomScrollRef.current;
     if (!bottomScroller) return;
 
-    const nextProgress = Number(event.target.value);
-    const maxScrollLeft = bottomScroller.scrollWidth - bottomScroller.clientWidth;
-    setBookingLogsScrollProgress(nextProgress);
-
-    if (maxScrollLeft > 0) {
-      bottomScroller.scrollLeft = (nextProgress / 100) * maxScrollLeft;
-    }
-  };
-
-  const handleBookingLogsTableScroll = () => {
-    const bottomScroller = bookingLogsBottomScrollRef.current;
-    if (!bottomScroller) return;
-
-    const maxScrollLeft = bottomScroller.scrollWidth - bottomScroller.clientWidth;
-    if (maxScrollLeft <= 0) {
-      setBookingLogsScrollProgress(0);
-      return;
-    }
-
-    setBookingLogsScrollProgress((bottomScroller.scrollLeft / maxScrollLeft) * 100);
+    bottomScroller.scrollBy({
+      left: direction === 'left' ? -420 : 420,
+      behavior: 'smooth',
+    });
   };
 
   useEffect(() => {
@@ -1573,7 +1556,6 @@ export default function App() {
 
       const maxScrollLeft = bottomScroller.scrollWidth - bottomScroller.clientWidth;
       setBookingLogsHasOverflow(maxScrollLeft > 0);
-      setBookingLogsScrollProgress(maxScrollLeft > 0 ? (bottomScroller.scrollLeft / maxScrollLeft) * 100 : 0);
     };
 
     const handleResize = () => window.requestAnimationFrame(syncBookingLogsWidth);
@@ -6341,24 +6323,32 @@ export default function App() {
             <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
               <div className="flex items-center justify-between gap-3 mb-2">
                 <p className="text-xs font-bold uppercase tracking-[0.18em] text-slate-500">Table Navigation</p>
-                <p className="text-xs font-medium text-slate-400">Drag the slider to view all columns</p>
+                <p className="text-xs font-medium text-slate-400">Use the controls to move across the table</p>
               </div>
-              <input
-                type="range"
-                min="0"
-                max="100"
-                step="1"
-                value={bookingLogsScrollProgress}
-                onChange={handleBookingLogsSliderChange}
-                disabled={!bookingLogsHasOverflow}
-                className="w-full accent-cyan-600 disabled:opacity-40 disabled:cursor-not-allowed"
-                aria-label="Scroll booking and action logs table horizontally"
-              />
+              <div className="flex gap-3">
+                <button
+                  type="button"
+                  onClick={() => handleBookingLogsNav('left')}
+                  disabled={!bookingLogsHasOverflow}
+                  className="inline-flex items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-bold text-slate-700 transition hover:border-cyan-300 hover:text-cyan-700 disabled:cursor-not-allowed disabled:opacity-40"
+                >
+                  <ChevronRight size={16} className="rotate-180" />
+                  Scroll Left
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleBookingLogsNav('right')}
+                  disabled={!bookingLogsHasOverflow}
+                  className="inline-flex items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-bold text-slate-700 transition hover:border-cyan-300 hover:text-cyan-700 disabled:cursor-not-allowed disabled:opacity-40"
+                >
+                  Scroll Right
+                  <ChevronRight size={16} />
+                </button>
+              </div>
             </div>
           </div>
           <div
             ref={bookingLogsBottomScrollRef}
-            onScroll={handleBookingLogsTableScroll}
             className="overflow-x-auto pb-2"
           >
             <table className="w-full min-w-[1640px] table-fixed text-left font-medium text-sm">
