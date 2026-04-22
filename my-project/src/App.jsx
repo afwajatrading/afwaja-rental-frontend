@@ -460,6 +460,23 @@ const processImageWithWatermark = async (
 };
 
 const formatCurrency = (amount) => `MYR ${Number(amount || 0).toFixed(2)}`;
+const formatSummaryCurrency = (amount) => `MYR ${Number(amount || 0).toLocaleString('en-MY', {
+  minimumFractionDigits: Number(amount || 0) % 1 === 0 ? 0 : 2,
+  maximumFractionDigits: 2
+})}`;
+const getBookingSummaryDurationLabel = (days, extraHours) => {
+  const durationParts = [];
+
+  if (days > 0) {
+    durationParts.push(`${days} ${days === 1 ? 'Day' : 'Days'}`);
+  }
+
+  if (extraHours > 0) {
+    durationParts.push(`${extraHours} ${extraHours === 1 ? 'Hour' : 'Hours'}`);
+  }
+
+  return durationParts.length > 0 ? durationParts.join(' + ') : '0 Hours';
+};
 
 const formatDateTime = (dateStr) => {
   if (!dateStr) return '-';
@@ -6351,7 +6368,7 @@ export default function App() {
             ref={bookingLogsBottomScrollRef}
             className="overflow-x-auto pb-2"
           >
-            <table className="w-full min-w-[1940px] table-fixed text-left font-medium text-sm">
+            <table className="w-full min-w-[2000px] table-fixed text-left font-medium text-sm">
               <thead className="bg-slate-50 border-b border-slate-200 text-slate-500 font-bold text-xs uppercase tracking-wider">
                 <tr>
                   <th className="px-6 py-5 w-20">No.</th>
@@ -6363,7 +6380,7 @@ export default function App() {
                   <th className="px-6 py-5 w-32">Status</th>
                   <th className="px-6 py-5 w-32">KYC Status</th>
                   <th className="px-6 py-5 w-36">Supplier / Cost</th>
-                  <th className="px-6 py-5 w-[280px]">Cost Breakdown</th>
+                  <th className="px-6 py-5 w-[360px]">Booking Summary</th>
                   <th className="px-6 py-5 w-28">Net Profit</th>
                   <th className="px-6 py-5 w-40 text-center sticky right-0 z-10 bg-slate-50">Action</th>
                 </tr>
@@ -6453,30 +6470,71 @@ export default function App() {
                         ) : '-'}
                       </td>
                       <td className="px-6 py-4 align-top">
-                        <div className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-3 text-xs text-slate-600">
-                          <div className="flex items-center justify-between gap-3">
-                            <span className="font-semibold text-slate-500">Total Payable</span>
-                            <span className="font-bold text-slate-900">MYR {booking.customer.grandTotal ?? 0}</span>
-                          </div>
-                          <div className="mt-2 flex items-center justify-between gap-3">
-                            <span className="font-semibold text-slate-500">Discount</span>
-                            <span className={`font-bold ${(booking.customer.coupon?.discountAmount || 0) > 0 ? 'text-emerald-600' : 'text-slate-900'}`}>
-                              {booking.customer.coupon?.discountAmount > 0 ? `- MYR ${booking.customer.coupon.discountAmount}` : 'MYR 0'}
-                            </span>
-                          </div>
-                          <div className="mt-2 flex items-center justify-between gap-3">
-                            <span className="font-semibold text-slate-500">Pickup Fee</span>
-                            <span className="font-bold text-slate-900">MYR {booking.customer.pickupFee ?? 0}</span>
-                          </div>
-                          <div className="mt-2 flex items-center justify-between gap-3">
-                            <span className="font-semibold text-slate-500">Return Fee</span>
-                            <span className="font-bold text-slate-900">MYR {booking.customer.returnFee ?? 0}</span>
-                          </div>
-                          <div className="mt-2 flex items-center justify-between gap-3 border-t border-slate-200 pt-2">
-                            <span className="font-semibold text-slate-500">Security Deposit</span>
-                            <span className="font-bold text-emerald-700">MYR {booking.customer.deposit ?? 0}</span>
-                          </div>
-                        </div>
+                        {(() => {
+                          const bookingDays = Number(booking.customer.totalDays || 0);
+                          const bookingExtraHours = Number(booking.customer.extraHours || 0);
+                          const bookingExtraHoursFee = Number(booking.customer.extraHoursFee || 0);
+                          const bookingDiscount = Number(booking.customer.coupon?.discountAmount || 0);
+                          const bookingPickupFee = Number(booking.customer.pickupFee || 0);
+                          const bookingReturnFee = Number(booking.customer.returnFee || 0);
+                          const bookingDeposit = Number(booking.customer.deposit || 0);
+                          const bookingGrandTotal = Number(booking.customer.grandTotal || 0);
+                          const rentalRateTotal = Math.max(0, Number(booking.customer.totalPrice || 0) - bookingExtraHoursFee);
+                          const bookingDailyRate = Number(
+                            booking.customer.appliedDailyRate ||
+                            (bookingDays > 0 ? Math.round(rentalRateTotal / bookingDays) : 0)
+                          );
+                          const durationLabel = getBookingSummaryDurationLabel(bookingDays, bookingExtraHours);
+
+                          return (
+                            <div className="rounded-2xl border border-cyan-200 bg-cyan-50/80 px-4 py-4 text-xs text-slate-700 shadow-sm">
+                              <div className="flex items-center gap-2 border-b border-cyan-200 pb-3">
+                                <FileText size={15} className="text-cyan-700" />
+                                <p className="text-sm font-extrabold text-cyan-900">
+                                  Booking Summary ({durationLabel})
+                                </p>
+                              </div>
+                              <div className="space-y-2 pt-3">
+                                <div className="flex items-start justify-between gap-3">
+                                  <span className="font-semibold text-slate-700">
+                                    Rental Rate ({bookingDays} {bookingDays === 1 ? 'Day' : 'Days'} @ {formatSummaryCurrency(bookingDailyRate)}/day):
+                                  </span>
+                                  <span className="shrink-0 font-extrabold text-slate-900">{formatSummaryCurrency(rentalRateTotal)}</span>
+                                </div>
+                                {bookingExtraHours > 0 && (
+                                  <div className="flex items-start justify-between gap-3">
+                                    <span className="font-semibold text-slate-700">
+                                      Extra Hours Fee ({bookingExtraHours} {bookingExtraHours === 1 ? 'Hour' : 'Hours'}):
+                                    </span>
+                                    <span className="shrink-0 font-extrabold text-slate-900">{formatSummaryCurrency(bookingExtraHoursFee)}</span>
+                                  </div>
+                                )}
+                                {bookingDiscount > 0 && (
+                                  <div className="flex items-start justify-between gap-3">
+                                    <span className="font-semibold text-slate-700">Discount:</span>
+                                    <span className="shrink-0 font-extrabold text-emerald-600">- {formatSummaryCurrency(bookingDiscount)}</span>
+                                  </div>
+                                )}
+                                <div className="flex items-start justify-between gap-3">
+                                  <span className="font-semibold text-slate-700">Delivery Fee:</span>
+                                  <span className="shrink-0 font-extrabold text-slate-900">{formatSummaryCurrency(bookingPickupFee)}</span>
+                                </div>
+                                <div className="flex items-start justify-between gap-3">
+                                  <span className="font-semibold text-slate-700">Return Fee:</span>
+                                  <span className="shrink-0 font-extrabold text-slate-900">{formatSummaryCurrency(bookingReturnFee)}</span>
+                                </div>
+                                <div className="flex items-start justify-between gap-3">
+                                  <span className="font-semibold text-slate-700">Security Deposit (Fully Refundable):</span>
+                                  <span className="shrink-0 font-extrabold text-slate-900">{formatSummaryCurrency(bookingDeposit)}</span>
+                                </div>
+                              </div>
+                              <div className="mt-4 flex items-end justify-between gap-3 border-t border-dashed border-cyan-300 pt-4">
+                                <span className="text-base font-extrabold text-cyan-900">Grand Total:</span>
+                                <span className="brand text-3xl font-extrabold text-emerald-700">{formatSummaryCurrency(bookingGrandTotal)}</span>
+                              </div>
+                            </div>
+                          );
+                        })()}
                       </td>
                       <td className="px-6 py-4 font-bold text-lg text-emerald-600">
                         {(booking.status === 'Completed' || booking.status === 'Active' || booking.status === 'Return_Pending' || booking.status === 'Returned') ? `MYR ${booking.profit}` : '-'}
