@@ -6351,7 +6351,7 @@ export default function App() {
             ref={bookingLogsBottomScrollRef}
             className="overflow-x-auto pb-2"
           >
-            <table className="w-full min-w-[1640px] table-fixed text-left font-medium text-sm">
+            <table className="w-full min-w-[1940px] table-fixed text-left font-medium text-sm">
               <thead className="bg-slate-50 border-b border-slate-200 text-slate-500 font-bold text-xs uppercase tracking-wider">
                 <tr>
                   <th className="px-6 py-5 w-20">No.</th>
@@ -6363,13 +6363,14 @@ export default function App() {
                   <th className="px-6 py-5 w-32">Status</th>
                   <th className="px-6 py-5 w-32">KYC Status</th>
                   <th className="px-6 py-5 w-36">Supplier / Cost</th>
+                  <th className="px-6 py-5 w-[280px]">Cost Breakdown</th>
                   <th className="px-6 py-5 w-28">Net Profit</th>
                   <th className="px-6 py-5 w-40 text-center sticky right-0 z-10 bg-slate-50">Action</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
                 {filteredBookings.length === 0 ? (
-                  <tr><td colSpan="11" className="px-8 py-16 text-center text-slate-400">No records found.</td></tr>
+                  <tr><td colSpan="12" className="px-8 py-16 text-center text-slate-400">No records found.</td></tr>
                 ) : (
                   filteredBookings.map((booking, index) => (
                     <tr key={booking.id} className="hover:bg-slate-50/80 transition-colors">
@@ -6450,6 +6451,32 @@ export default function App() {
                             {booking.supplier.type === 'supplier' && <p className="text-xs text-slate-500">Cost: MYR {booking.supplier.cost}</p>}
                           </div>
                         ) : '-'}
+                      </td>
+                      <td className="px-6 py-4 align-top">
+                        <div className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-3 text-xs text-slate-600">
+                          <div className="flex items-center justify-between gap-3">
+                            <span className="font-semibold text-slate-500">Total Payable</span>
+                            <span className="font-bold text-slate-900">MYR {booking.customer.grandTotal ?? 0}</span>
+                          </div>
+                          <div className="mt-2 flex items-center justify-between gap-3">
+                            <span className="font-semibold text-slate-500">Discount</span>
+                            <span className={`font-bold ${(booking.customer.coupon?.discountAmount || 0) > 0 ? 'text-emerald-600' : 'text-slate-900'}`}>
+                              {booking.customer.coupon?.discountAmount > 0 ? `- MYR ${booking.customer.coupon.discountAmount}` : 'MYR 0'}
+                            </span>
+                          </div>
+                          <div className="mt-2 flex items-center justify-between gap-3">
+                            <span className="font-semibold text-slate-500">Pickup Fee</span>
+                            <span className="font-bold text-slate-900">MYR {booking.customer.pickupFee ?? 0}</span>
+                          </div>
+                          <div className="mt-2 flex items-center justify-between gap-3">
+                            <span className="font-semibold text-slate-500">Return Fee</span>
+                            <span className="font-bold text-slate-900">MYR {booking.customer.returnFee ?? 0}</span>
+                          </div>
+                          <div className="mt-2 flex items-center justify-between gap-3 border-t border-slate-200 pt-2">
+                            <span className="font-semibold text-slate-500">Security Deposit</span>
+                            <span className="font-bold text-emerald-700">MYR {booking.customer.deposit ?? 0}</span>
+                          </div>
+                        </div>
                       </td>
                       <td className="px-6 py-4 font-bold text-lg text-emerald-600">
                         {(booking.status === 'Completed' || booking.status === 'Active' || booking.status === 'Return_Pending' || booking.status === 'Returned') ? `MYR ${booking.profit}` : '-'}
