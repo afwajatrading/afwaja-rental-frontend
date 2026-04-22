@@ -6763,7 +6763,7 @@ export default function App() {
             <Phone className="text-cyan-600 w-8 h-8" />
           </div>
           <div>
-            <h4 className="font-bold text-slate-900 text-xl mb-1">Phone / WhatsApp</h4>
+            <h4 className="font-bold text-slate-900 text-xl mb-1">Phone</h4>
             <p className="text-slate-600 mb-2">Mon-Sun: 24/7 Support</p>
             <a href="tel:0338530080" className="brand text-3xl font-bold text-cyan-600 hover:underline">03-38530080</a>
           </div>
