@@ -335,7 +335,7 @@ const INITIAL_AGREEMENT_TERMS = [
     title: '4. Payment Channels, Security Deposit & Refunds',
     bullets: [
       'Malaysian citizens must complete payments via FPX (Online Banking). International tourists must complete payments via Credit/Debit Card.',
-      'A security deposit of RM100 to RM400 is required before handover depending on the car category.',
+      'A refundable security deposit is required before handover: RM100 to RM300 for Malaysian citizens and RM200 to RM600 for international tourists, depending on the vehicle group.',
       'Deposits for Malaysian citizens are refunded via online bank transfer within 3 to 14 working days after the vehicle is returned.',
       'Deposits for international tourists are refunded to the Credit/Debit Card used during booking, subject to the bank\'s policy.',
       'All refunds are subject to the vehicle being returned in good condition and clear of any traffic summons.',
@@ -1156,6 +1156,9 @@ export default function App() {
   const bookingPickupDateInputRef = useRef(null);
   const bookingReturnDateInputRef = useRef(null);
   const couponCodeInputRef = useRef(null);
+  const bookingLogsTopScrollRef = useRef(null);
+  const bookingLogsBottomScrollRef = useRef(null);
+  const bookingLogsScrollSyncRef = useRef(false);
   
   // FIX: Memindahkan state ini dari BookingView ke parent (App) 
   // agar urutan hooks React (Rules of Hooks) tetap konsisten.
@@ -1535,6 +1538,21 @@ export default function App() {
 
     input.focus();
     input.click?.();
+  };
+
+  const syncBookingLogsScroll = (source) => {
+    const topScroller = bookingLogsTopScrollRef.current;
+    const bottomScroller = bookingLogsBottomScrollRef.current;
+    if (!topScroller || !bottomScroller || bookingLogsScrollSyncRef.current) return;
+
+    const sourceScroller = source === 'top' ? topScroller : bottomScroller;
+    const targetScroller = source === 'top' ? bottomScroller : topScroller;
+
+    bookingLogsScrollSyncRef.current = true;
+    targetScroller.scrollLeft = sourceScroller.scrollLeft;
+    window.requestAnimationFrame(() => {
+      bookingLogsScrollSyncRef.current = false;
+    });
   };
 
   const handleSelectSuggestedLocation = async (suggestion) => {
@@ -6288,7 +6306,26 @@ export default function App() {
               </div>
             </div>
           </div>
-          <div className="overflow-x-auto pb-2">
+          <div className="px-8 pt-5">
+            <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
+              <div className="flex items-center justify-between gap-3 mb-2">
+                <p className="text-xs font-bold uppercase tracking-[0.18em] text-slate-500">Table Navigation</p>
+                <p className="text-xs font-medium text-slate-400">Slide left / right to view all columns</p>
+              </div>
+              <div
+                ref={bookingLogsTopScrollRef}
+                onScroll={() => syncBookingLogsScroll('top')}
+                className="overflow-x-auto pb-1"
+              >
+                <div className="h-3 min-w-[1640px] rounded-full bg-gradient-to-r from-slate-200 via-cyan-200 to-slate-200"></div>
+              </div>
+            </div>
+          </div>
+          <div
+            ref={bookingLogsBottomScrollRef}
+            onScroll={() => syncBookingLogsScroll('bottom')}
+            className="overflow-x-auto pb-2"
+          >
             <table className="w-full min-w-[1640px] table-fixed text-left font-medium text-sm">
               <thead className="bg-slate-50 border-b border-slate-200 text-slate-500 font-bold text-xs uppercase tracking-wider">
                 <tr>
@@ -6486,7 +6523,7 @@ export default function App() {
             <h3 className="text-xl font-bold text-slate-900 mb-3 flex items-center gap-2"><ShieldCheck className="text-cyan-600"/> 4. Payment Channels, Security Deposit & Refunds</h3>
             <ul className="list-disc pl-5 space-y-2">
               <li><strong>Payment Channels:</strong> Malaysian citizens must complete payments securely via <strong>FPX (Online Banking)</strong>. International tourists must complete payments via <strong>Credit/Debit Card</strong> to facilitate seamless international deposit refunds.</li>
-              <li>A security deposit of RM100 to RM400 (depending on the car category) is required before handover.</li>
+              <li>A refundable security deposit is required before handover: <strong>RM100 to RM300 for Malaysian citizens</strong> and <strong>RM200 to RM600 for international tourists</strong>, depending on the vehicle group.</li>
               <li><strong>For Malaysian Citizens:</strong> The deposit will be refunded via online bank transfer within <strong>3 to 14 working days</strong> after the vehicle is returned.</li>
               <li><strong>For International Tourists:</strong> The deposit will be refunded/reversed directly to the <strong>Credit/Debit Card</strong> used during booking. The processing time is subject to your respective bank's policy (usually 3-14 days).</li>
               <li>All refunds are strictly subject to the vehicle being returned in good condition, free from new damages, and clear of any traffic summons.</li>
@@ -6624,7 +6661,7 @@ export default function App() {
       },
       {
         q: "Do I need to pay a security deposit?",
-        a: "Yes, a refundable security deposit between RM100 to RM400 is required depending on the vehicle group. It will be fully refunded within 3-14 working days after the vehicle is returned without damages or summons."
+        a: "Yes. Malaysian citizens are required to pay a refundable security deposit between RM100 to RM300, while international tourists are required to pay between RM200 to RM600, depending on the vehicle group. It will be refunded within 3-14 working days after the vehicle is returned without damages or summons, subject to the payment method used."
       },
       {
         q: "Do you provide car delivery to the airport or hotel?",
