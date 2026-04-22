@@ -1156,11 +1156,9 @@ export default function App() {
   const bookingPickupDateInputRef = useRef(null);
   const bookingReturnDateInputRef = useRef(null);
   const couponCodeInputRef = useRef(null);
-  const bookingLogsTopScrollRef = useRef(null);
   const bookingLogsBottomScrollRef = useRef(null);
-  const bookingLogsScrollSyncRef = useRef(null);
-  const bookingLogsScrollResetTimeoutRef = useRef(null);
-  const [bookingLogsScrollSpan, setBookingLogsScrollSpan] = useState(1640);
+  const [bookingLogsScrollProgress, setBookingLogsScrollProgress] = useState(0);
+  const [bookingLogsHasOverflow, setBookingLogsHasOverflow] = useState(false);
   
   // FIX: Memindahkan state ini dari BookingView ke parent (App) 
   // agar urutan hooks React (Rules of Hooks) tetap konsisten.
@@ -1542,40 +1540,40 @@ export default function App() {
     input.click?.();
   };
 
-  const syncBookingLogsScroll = (source) => {
-    const topScroller = bookingLogsTopScrollRef.current;
+  const handleBookingLogsSliderChange = (event) => {
     const bottomScroller = bookingLogsBottomScrollRef.current;
-    if (!topScroller || !bottomScroller) return;
+    if (!bottomScroller) return;
 
-    if (bookingLogsScrollSyncRef.current === source) {
-      bookingLogsScrollSyncRef.current = null;
+    const nextProgress = Number(event.target.value);
+    const maxScrollLeft = bottomScroller.scrollWidth - bottomScroller.clientWidth;
+    setBookingLogsScrollProgress(nextProgress);
+
+    if (maxScrollLeft > 0) {
+      bottomScroller.scrollLeft = (nextProgress / 100) * maxScrollLeft;
+    }
+  };
+
+  const handleBookingLogsTableScroll = () => {
+    const bottomScroller = bookingLogsBottomScrollRef.current;
+    if (!bottomScroller) return;
+
+    const maxScrollLeft = bottomScroller.scrollWidth - bottomScroller.clientWidth;
+    if (maxScrollLeft <= 0) {
+      setBookingLogsScrollProgress(0);
       return;
     }
 
-    const sourceScroller = source === 'top' ? topScroller : bottomScroller;
-    const targetScroller = source === 'top' ? bottomScroller : topScroller;
-    if (Math.abs(targetScroller.scrollLeft - sourceScroller.scrollLeft) < 1) return;
-
-    bookingLogsScrollSyncRef.current = source === 'top' ? 'bottom' : 'top';
-    targetScroller.scrollLeft = sourceScroller.scrollLeft;
-    window.clearTimeout(bookingLogsScrollResetTimeoutRef.current);
-    bookingLogsScrollResetTimeoutRef.current = window.setTimeout(() => {
-      bookingLogsScrollSyncRef.current = null;
-    }, 0);
+    setBookingLogsScrollProgress((bottomScroller.scrollLeft / maxScrollLeft) * 100);
   };
 
   useEffect(() => {
     const syncBookingLogsWidth = () => {
       const bottomScroller = bookingLogsBottomScrollRef.current;
-      const topScroller = bookingLogsTopScrollRef.current;
       if (!bottomScroller) return;
 
-      const nextWidth = Math.max(bottomScroller.scrollWidth, 1640);
-      setBookingLogsScrollSpan((prevWidth) => (prevWidth === nextWidth ? prevWidth : nextWidth));
-
-      if (topScroller && Math.abs(topScroller.scrollLeft - bottomScroller.scrollLeft) > 1) {
-        topScroller.scrollLeft = bottomScroller.scrollLeft;
-      }
+      const maxScrollLeft = bottomScroller.scrollWidth - bottomScroller.clientWidth;
+      setBookingLogsHasOverflow(maxScrollLeft > 0);
+      setBookingLogsScrollProgress(maxScrollLeft > 0 ? (bottomScroller.scrollLeft / maxScrollLeft) * 100 : 0);
     };
 
     const handleResize = () => window.requestAnimationFrame(syncBookingLogsWidth);
@@ -1585,7 +1583,6 @@ export default function App() {
 
     return () => {
       window.removeEventListener('resize', handleResize);
-      window.clearTimeout(bookingLogsScrollResetTimeoutRef.current);
     };
   }, [bookings, adminFilters, currentView]);
 
@@ -6344,23 +6341,24 @@ export default function App() {
             <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
               <div className="flex items-center justify-between gap-3 mb-2">
                 <p className="text-xs font-bold uppercase tracking-[0.18em] text-slate-500">Table Navigation</p>
-                <p className="text-xs font-medium text-slate-400">Slide left / right to view all columns</p>
+                <p className="text-xs font-medium text-slate-400">Drag the slider to view all columns</p>
               </div>
-              <div
-                ref={bookingLogsTopScrollRef}
-                onScroll={() => syncBookingLogsScroll('top')}
-                className="overflow-x-auto pb-1"
-              >
-                <div
-                  style={{ width: `${bookingLogsScrollSpan}px` }}
-                  className="h-3 rounded-full bg-gradient-to-r from-slate-200 via-cyan-300 to-slate-200"
-                ></div>
-              </div>
+              <input
+                type="range"
+                min="0"
+                max="100"
+                step="1"
+                value={bookingLogsScrollProgress}
+                onChange={handleBookingLogsSliderChange}
+                disabled={!bookingLogsHasOverflow}
+                className="w-full accent-cyan-600 disabled:opacity-40 disabled:cursor-not-allowed"
+                aria-label="Scroll booking and action logs table horizontally"
+              />
             </div>
           </div>
           <div
             ref={bookingLogsBottomScrollRef}
-            onScroll={() => syncBookingLogsScroll('bottom')}
+            onScroll={handleBookingLogsTableScroll}
             className="overflow-x-auto pb-2"
           >
             <table className="w-full min-w-[1640px] table-fixed text-left font-medium text-sm">
