@@ -3707,11 +3707,8 @@ export default function App() {
                         Indicative display only. Final payment will still be charged in MYR.
                       </p>
                       <p className="mt-2 text-xs font-semibold text-amber-800">
-                        Exchange rate reference provided by Frankfurter via our backend cache.
+                        Exchange rate reference provided by Frankfurter.
                       </p>
-                      {touristDisplayRateMeta.error && (
-                        <p className="mt-1 text-xs font-bold text-amber-900">{touristDisplayRateMeta.error}</p>
-                      )}
                     </div>
                     <select
                       value={touristDisplayCurrency}
