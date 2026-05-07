@@ -58,6 +58,29 @@ const AFWAJA_HQ = {
   lng: 101.6559,
 };
 const DELIVERY_RATE_PER_KM = 2.5;
+const DEFAULT_TOURIST_DISPLAY_CURRENCY = 'SGD';
+const TOURIST_DISPLAY_RATE_CACHE_KEY = 'afwaja:tourist-display-rates:v1';
+const TOURIST_DISPLAY_CURRENCIES = [
+  { code: 'IDR', label: 'IDR' },
+  { code: 'SGD', label: 'SGD' },
+  { code: 'AUD', label: 'AUD' },
+  { code: 'KRW', label: 'KRW' },
+  { code: 'PHP', label: 'PHP' },
+  { code: 'JPY', label: 'JPY' },
+  { code: 'GBP', label: 'GBP' },
+  { code: 'TWD', label: 'TWD' },
+];
+const FALLBACK_TOURIST_DISPLAY_RATES = {
+  IDR: 3825,
+  SGD: 0.3,
+  AUD: 0.34,
+  KRW: 317,
+  PHP: 13.25,
+  JPY: 34.1,
+  GBP: 0.17,
+  TWD: 7.18,
+};
+const TOURIST_DISPLAY_RATE_CODES = TOURIST_DISPLAY_CURRENCIES.map((currency) => currency.code);
 
 let googleMapsScriptPromise = null;
 
@@ -464,6 +487,57 @@ const formatSummaryCurrency = (amount) => `MYR ${Number(amount || 0).toLocaleStr
   minimumFractionDigits: Number(amount || 0) % 1 === 0 ? 0 : 2,
   maximumFractionDigits: 2
 })}`;
+const getTouristDisplayCurrencyMeta = (code = 'MYR') =>
+  TOURIST_DISPLAY_CURRENCIES.find((currency) => currency.code === code) || { code: 'MYR', label: 'MYR' };
+const normalizeTouristDisplayRates = (rates = {}) =>
+  TOURIST_DISPLAY_RATE_CODES.reduce((acc, code) => {
+    const nextRate = Number(rates[code]);
+    acc[code] = Number.isFinite(nextRate) && nextRate > 0 ? nextRate : FALLBACK_TOURIST_DISPLAY_RATES[code];
+    return acc;
+  }, {});
+const readCachedTouristDisplayRates = () => {
+  if (typeof window === 'undefined') return null;
+  try {
+    const raw = window.localStorage.getItem(TOURIST_DISPLAY_RATE_CACHE_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    if (!parsed || typeof parsed !== 'object') return null;
+    return {
+      ...parsed,
+      rates: normalizeTouristDisplayRates(parsed.rates),
+    };
+  } catch (error) {
+    console.warn('Unable to read cached tourist display rates.', error);
+    return null;
+  }
+};
+const writeCachedTouristDisplayRates = (payload) => {
+  if (typeof window === 'undefined') return;
+  try {
+    window.localStorage.setItem(TOURIST_DISPLAY_RATE_CACHE_KEY, JSON.stringify(payload));
+  } catch (error) {
+    console.warn('Unable to store tourist display rates cache.', error);
+  }
+};
+const convertFromMYR = (amount, code = 'MYR', rates = FALLBACK_TOURIST_DISPLAY_RATES) => {
+  if (code === 'MYR') return Number(amount || 0);
+  const nextRate = Number(rates?.[code]);
+  return Number(amount || 0) * (Number.isFinite(nextRate) && nextRate > 0 ? nextRate : 1);
+};
+const formatDisplayCurrency = (amount, code = 'MYR', rates = FALLBACK_TOURIST_DISPLAY_RATES) => {
+  if (code === 'MYR') return formatCurrency(amount);
+  return `${code} ${convertFromMYR(amount, code, rates).toLocaleString('en-US', {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  })}`;
+};
+const formatDisplaySummaryCurrency = (amount, code = 'MYR', rates = FALLBACK_TOURIST_DISPLAY_RATES) => {
+  if (code === 'MYR') return formatSummaryCurrency(amount);
+  return `${code} ${convertFromMYR(amount, code, rates).toLocaleString('en-US', {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  })}`;
+};
 const getBookingSummaryDurationLabel = (days, extraHours) => {
   const durationParts = [];
 
@@ -833,6 +907,7 @@ const normalizeCouponCode = (value = '') =>
 const getCouponDocId = (code = '') => normalizeCouponCode(code);
 
 const getCouponCollectionPath = (appIdValue) => ['artifacts', appIdValue, 'public', 'data', 'coupons'];
+const getExchangeRatesDocPath = (appIdValue) => ['artifacts', appIdValue, 'public', 'data', 'config', 'exchangeRates'];
 
 const getCouponStatus = (coupon) => {
   const now = new Date();
@@ -1085,6 +1160,15 @@ export default function App() {
   const [filter, setFilter] = useState('all');
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [fleetPricingMode, setFleetPricingMode] = useState('local');
+  const [touristDisplayCurrency, setTouristDisplayCurrency] = useState(DEFAULT_TOURIST_DISPLAY_CURRENCY);
+  const [touristDisplayRates, setTouristDisplayRates] = useState(FALLBACK_TOURIST_DISPLAY_RATES);
+  const [touristDisplayRateMeta, setTouristDisplayRateMeta] = useState({
+    source: 'fallback',
+    slot: '',
+    updatedAt: '',
+    rateDate: '',
+    error: '',
+  });
   const [selectedCar, setSelectedCar] = useState(null);
   const [bookingDetails, setBookingDetails] = useState({
     name: '',
@@ -1115,6 +1199,7 @@ export default function App() {
     coupon: emptyAppliedCoupon(),
     deposit: 0,
     grandTotal: 0,
+    displayCurrency: 'MYR',
     customerType: 'local',
     paymentMethod: 'fpx'
   });
@@ -1179,6 +1264,68 @@ export default function App() {
   // FIX: Memindahkan state ini dari BookingView ke parent (App) 
   // agar urutan hooks React (Rules of Hooks) tetap konsisten.
   const [readingDoc, setReadingDoc] = useState(null);
+
+  useEffect(() => {
+    if (fleetPricingMode !== 'international') return;
+    setBookingDetails((prev) => {
+      if (prev.customerType !== 'international' || prev.displayCurrency === touristDisplayCurrency) {
+        return prev;
+      }
+      return { ...prev, displayCurrency: touristDisplayCurrency };
+    });
+  }, [fleetPricingMode, touristDisplayCurrency]);
+
+  useEffect(() => {
+    const cachedRates = readCachedTouristDisplayRates();
+
+    if (cachedRates?.rates) {
+      setTouristDisplayRates(cachedRates.rates);
+      setTouristDisplayRateMeta({
+        source: cachedRates.source || 'cache',
+        slot: cachedRates.slot || '',
+        updatedAt: cachedRates.updatedAt || '',
+        rateDate: cachedRates.rateDate || '',
+        error: '',
+      });
+    }
+
+    const exchangeRateRef = doc(db, ...getExchangeRatesDocPath(appId));
+    const unsubscribe = onSnapshot(exchangeRateRef, (snapshot) => {
+      if (!snapshot.exists()) {
+        setTouristDisplayRateMeta((prev) => ({
+          ...prev,
+          error: prev.updatedAt ? prev.error : 'Live rates are not cached yet. Using cached or fallback rates.',
+        }));
+        return;
+      }
+
+      const rateData = snapshot.data();
+      const nextRates = normalizeTouristDisplayRates(rateData.rates || {});
+      const nextMeta = {
+        source: rateData.source || 'backend_cache',
+        slot: rateData.cacheSlot || '',
+        updatedAt: rateData.updatedAt || '',
+        rateDate: rateData.rateDate || '',
+        provider: rateData.provider || 'Frankfurter',
+        error: '',
+      };
+
+      setTouristDisplayRates(nextRates);
+      setTouristDisplayRateMeta(nextMeta);
+      writeCachedTouristDisplayRates({
+        ...nextMeta,
+        rates: nextRates,
+      });
+    }, (error) => {
+      console.error('Error fetching cached tourist display rates:', error);
+      setTouristDisplayRateMeta((prev) => ({
+        ...prev,
+        error: 'Live rates unavailable. Using cached or fallback rates.',
+      }));
+    });
+
+    return () => unsubscribe();
+  }, [appId]);
 
   const trackedBooking = searchTrackId ? bookings.find(b => b.id === searchTrackId) : null;
   const activePromoPopup = [...promoPopups]
@@ -2214,6 +2361,7 @@ export default function App() {
       coupon: emptyAppliedCoupon(),
       deposit: 0,
       grandTotal: 0,
+      displayCurrency: fleetPricingMode === 'international' ? touristDisplayCurrency : 'MYR',
       customerType: fleetPricingMode,
       paymentMethod: fleetPricingMode === 'local' ? 'fpx' : 'card',
     }));
@@ -2309,7 +2457,8 @@ export default function App() {
       seasonalPricing,
       coupon: appliedCoupon,
       deposit,
-      grandTotal
+      grandTotal,
+      displayCurrency: bookingDetails.customerType === 'international' ? touristDisplayCurrency : 'MYR',
     });
     setCurrentView('payment');
     window.scrollTo(0, 0);
@@ -3183,6 +3332,7 @@ export default function App() {
                         setFleetPricingMode('local');
                         setBookingDetails(prev => ({
                           ...prev,
+                          displayCurrency: 'MYR',
                           customerType: 'local',
                           paymentMethod: 'fpx',
                         }));
@@ -3201,6 +3351,7 @@ export default function App() {
                         setFleetPricingMode('international');
                         setBookingDetails(prev => ({
                           ...prev,
+                          displayCurrency: touristDisplayCurrency,
                           customerType: 'international',
                           paymentMethod: 'card',
                         }));
@@ -3547,6 +3698,35 @@ export default function App() {
               <p className="inline-flex items-center rounded-full border border-cyan-200 bg-cyan-50 px-5 py-2 text-sm font-bold text-cyan-800 mb-6">
                 Showing {fleetPricingMode === 'local' ? 'Malaysian Citizen' : 'International Tourist'} pricing
               </p>
+              {fleetPricingMode === 'international' && (
+                <div className="mx-auto mb-8 max-w-xl rounded-2xl border border-amber-200 bg-amber-50 px-5 py-4">
+                  <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                    <div className="text-left">
+                      <p className="text-xs font-bold uppercase tracking-[0.18em] text-amber-700">Tourist Display Currency</p>
+                      <p className="mt-1 text-sm font-medium text-amber-900">
+                        Indicative display only. Final payment will still be charged in MYR.
+                      </p>
+                      <p className="mt-2 text-xs font-semibold text-amber-800">
+                        Exchange rate reference provided by Frankfurter via our backend cache.
+                      </p>
+                      {touristDisplayRateMeta.error && (
+                        <p className="mt-1 text-xs font-bold text-amber-900">{touristDisplayRateMeta.error}</p>
+                      )}
+                    </div>
+                    <select
+                      value={touristDisplayCurrency}
+                      onChange={(e) => setTouristDisplayCurrency(e.target.value)}
+                      className="rounded-xl border border-amber-200 bg-white px-4 py-3 font-bold text-slate-900 outline-none focus:ring-2 focus:ring-amber-400"
+                    >
+                      {TOURIST_DISPLAY_CURRENCIES.map((currency) => (
+                        <option key={currency.code} value={currency.code}>
+                          {currency.label}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+              )}
             </div>
             
             <div className="flex flex-wrap justify-center gap-3 mb-12">
@@ -3569,6 +3749,7 @@ export default function App() {
                 });
                 const displayDailyRate = seasonalOutcome.adjustedBaseRate || regularDailyRate;
                 const hasSeasonalRate = Boolean(seasonalOutcome.seasonalPricing.seasonalDocId);
+                const displayCurrencyCode = fleetPricingMode === 'international' ? touristDisplayCurrency : 'MYR';
                 // LOGIK ZOOM KHAS: Kereta yang ada banyak padding lutsinar kita zoom lebih sikit
                 const isSmallImage = [2, 20, 23].includes(car.id); // 2: Axia Old, 20: Vellfire 3rd Gen, 23: Starex
                 const scaleClasses = isSmallImage ? "scale-125 group-hover:scale-[1.4]" : "scale-110 group-hover:scale-125";
@@ -3608,15 +3789,21 @@ export default function App() {
                     <div className="flex flex-wrap gap-4 text-sm font-medium text-slate-600 mb-6 bg-slate-50/50 p-3 rounded-lg border border-slate-100">
                       <span className="flex items-center gap-1.5"><Users size={16} className="text-cyan-600"/>{car.seats} Seats</span>
                       <span className="flex items-center gap-1.5"><Settings size={16} className="text-cyan-600"/>{car.transmission}</span>
-                      <span className="flex items-center gap-1.5"><ShieldCheck size={16} className="text-cyan-600"/>Dep. MYR {fleetPricingMode === 'local' ? car.depositLocal : car.depositTourist}</span>
+                      <span className="flex items-center gap-1.5">
+                        <ShieldCheck size={16} className="text-cyan-600"/>
+                        Dep. {fleetPricingMode === 'local' ? formatDisplaySummaryCurrency(car.depositLocal, 'MYR') : formatDisplaySummaryCurrency(car.depositTourist, displayCurrencyCode, touristDisplayRates)}
+                      </span>
                     </div>
                     <div className="mt-auto flex justify-between items-end pt-4 border-t border-slate-200">
                       <div>
                         {hasSeasonalRate && (
-                          <p className="text-sm font-bold text-slate-400 line-through">MYR {regularDailyRate}</p>
+                          <p className="text-sm font-bold text-slate-400 line-through">{formatDisplaySummaryCurrency(regularDailyRate, displayCurrencyCode, touristDisplayRates)}</p>
                         )}
-                        <span className={`brand text-3xl font-bold ${hasSeasonalRate ? 'text-amber-600' : 'text-cyan-600'}`}>MYR {displayDailyRate}</span>
+                        <span className={`brand text-3xl font-bold ${hasSeasonalRate ? 'text-amber-600' : 'text-cyan-600'}`}>{formatDisplaySummaryCurrency(displayDailyRate, displayCurrencyCode, touristDisplayRates)}</span>
                         <span className="text-slate-500 text-sm font-medium">/day</span>
+                        {fleetPricingMode === 'international' && displayCurrencyCode !== 'MYR' && (
+                          <p className="mt-1 text-xs font-bold text-slate-500">Charged in MYR {displayDailyRate}/day</p>
+                        )}
                         {hasSeasonalRate && (
                           <p className="mt-1 text-xs font-bold text-amber-700">{seasonalOutcome.seasonalPricing.name}</p>
                         )}
@@ -3721,6 +3908,7 @@ export default function App() {
 
   const BookingView = () => {
     const isTourist = bookingDetails.customerType === 'international';
+    const touristDisplayCode = isTourist ? (bookingDetails.displayCurrency || touristDisplayCurrency || 'MYR') : 'MYR';
     const currentDailyPrice = isTourist ? selectedCar.priceTourist : selectedCar.priceLocal;
     const seasonalOutcome = getSeasonalPricingOutcome(seasonalPricings, {
       car: selectedCar,
@@ -3767,7 +3955,7 @@ export default function App() {
               <h2 className="brand text-3xl sm:text-5xl font-bold mb-2">{selectedCar.name}</h2>
               <div className="flex items-center justify-center sm:justify-start gap-4 mt-4">
                 <span className="bg-white/10 border border-white/20 px-4 py-2 rounded-xl text-sm font-bold flex items-center gap-2 shadow-sm">
-                  <ShieldCheck size={18}/> Refundable Deposit: MYR {currentDeposit}
+                  <ShieldCheck size={18}/> Refundable Deposit: {formatDisplaySummaryCurrency(currentDeposit, touristDisplayCode, touristDisplayRates)}
                 </span>
                 {seasonalOutcome.seasonalPricing.seasonalDocId && (
                   <span className="bg-amber-400/90 text-slate-900 px-4 py-2 rounded-xl text-sm font-bold flex items-center gap-2 shadow-sm">
@@ -3783,12 +3971,17 @@ export default function App() {
               </p>
               <div className="flex flex-col sm:items-end items-center">
                 {liveRental?.discountPercentage > 0 && (
-                  <p className="text-white/60 line-through text-lg font-bold mb-[-5px]">MYR {currentDailyPrice}</p>
+                  <p className="text-white/60 line-through text-lg font-bold mb-[-5px]">{formatDisplaySummaryCurrency(currentDailyPrice, touristDisplayCode, touristDisplayRates)}</p>
                 )}
                 {seasonalOutcome.seasonalPricing.seasonalDocId && liveRental?.discountPercentage === 0 && (
-                  <p className="text-white/60 line-through text-lg font-bold mb-[-5px]">MYR {currentDailyPrice}</p>
+                  <p className="text-white/60 line-through text-lg font-bold mb-[-5px]">{formatDisplaySummaryCurrency(currentDailyPrice, touristDisplayCode, touristDisplayRates)}</p>
                 )}
-                <p className="brand text-5xl sm:text-6xl font-bold text-white">MYR {liveRental?.totalHours > 0 ? liveRental.appliedDailyRate : currentDailyPrice} <span className="text-lg font-normal font-dm">/day</span></p>
+                <p className="brand text-5xl sm:text-6xl font-bold text-white">{formatDisplaySummaryCurrency(liveRental?.totalHours > 0 ? liveRental.appliedDailyRate : currentDailyPrice, touristDisplayCode, touristDisplayRates)} <span className="text-lg font-normal font-dm">/day</span></p>
+                {isTourist && touristDisplayCode !== 'MYR' && (
+                  <p className="mt-2 text-xs font-bold uppercase tracking-[0.16em] text-white/70">
+                    Final payment charged in MYR {liveRental?.totalHours > 0 ? liveRental.appliedDailyRate : currentDailyPrice}/day
+                  </p>
+                )}
                 {liveRental?.discountPercentage > 0 && (
                   <div className="inline-flex mt-2 items-center bg-emerald-500 text-white px-3 py-1 rounded-lg text-xs font-bold shadow-lg">
                     <Sparkles size={12} className="mr-1"/> {liveRental.discountPercentage}% OFF ({liveRental.discountTier})
@@ -3811,17 +4004,40 @@ export default function App() {
                   <p className="text-base font-bold text-slate-900">
                     {bookingDetails.customerType === 'international' ? 'International Tourist' : 'Malaysian Citizen'}
                   </p>
+                  {isTourist && (
+                    <p className="mt-2 text-xs font-semibold text-slate-500">
+                      Final payment remains in MYR. Displayed {touristDisplayCode} amounts are indicative only.
+                    </p>
+                  )}
                 </div>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setCurrentView('home');
-                    window.scrollTo({ top: 0, behavior: 'smooth' });
-                  }}
-                  className="text-sm font-bold text-cyan-700 hover:text-cyan-800"
-                >
-                  Change on homepage
-                </button>
+                <div className="flex flex-col items-end gap-3">
+                  {isTourist && (
+                    <select
+                      value={touristDisplayCode}
+                      onChange={(e) => {
+                        setTouristDisplayCurrency(e.target.value);
+                        setBookingDetails((prev) => ({ ...prev, displayCurrency: e.target.value }));
+                      }}
+                      className="rounded-xl border border-cyan-200 bg-white px-4 py-2 font-bold text-slate-900 outline-none focus:ring-2 focus:ring-cyan-400"
+                    >
+                      {TOURIST_DISPLAY_CURRENCIES.map((currency) => (
+                        <option key={currency.code} value={currency.code}>
+                          Display {currency.label}
+                        </option>
+                      ))}
+                    </select>
+                  )}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setCurrentView('home');
+                      window.scrollTo({ top: 0, behavior: 'smooth' });
+                    }}
+                    className="text-sm font-bold text-cyan-700 hover:text-cyan-800"
+                  >
+                    Change on homepage
+                  </button>
+                </div>
               </div>
 
               <div className="bg-slate-50 p-6 sm:p-8 rounded-2xl border border-slate-200 mb-8 shadow-sm">
@@ -4096,8 +4312,8 @@ export default function App() {
                         <FileText size={20}/> Booking Summary ({liveRental.days} Days {liveRental.extraHours > 0 ? `+ ${liveRental.extraHours} Hours` : ''})
                       </p>
                       <div className="flex justify-between items-center mb-2 text-sm font-bold text-slate-700">
-                        <span>Rental Rate ({liveRental.days} Days @ MYR {liveRental.appliedDailyRate}/day):</span>
-                        <span>MYR {liveRental.days * liveRental.appliedDailyRate}</span>
+                        <span>Rental Rate ({liveRental.days} Days @ {formatDisplaySummaryCurrency(liveRental.appliedDailyRate, touristDisplayCode, touristDisplayRates)}/day):</span>
+                        <span>{formatDisplaySummaryCurrency(liveRental.days * liveRental.appliedDailyRate, touristDisplayCode, touristDisplayRates)}</span>
                       </div>
                       {seasonalOutcome.seasonalPricing.seasonalDocId && (
                         <div className="flex justify-between items-center mb-2 text-sm font-bold text-amber-700">
@@ -4108,37 +4324,42 @@ export default function App() {
                       {liveRental.extraHours > 0 && (
                         <div className="flex justify-between items-center mb-2 text-sm font-bold text-slate-700">
                           <span>Extra Hours Fee ({liveRental.extraHours} Hours):</span>
-                          <span>MYR {liveRental.extraHoursFee}</span>
+                          <span>{formatDisplaySummaryCurrency(liveRental.extraHoursFee, touristDisplayCode, touristDisplayRates)}</span>
                         </div>
                       )}
                       {liveCouponDiscount > 0 && (
                         <div className="flex justify-between items-center mb-2 text-sm font-bold text-emerald-700">
                           <span>Coupon Discount ({bookingDetails.coupon.code}):</span>
-                          <span>- MYR {liveCouponDiscount}</span>
+                          <span>- {formatDisplaySummaryCurrency(liveCouponDiscount, touristDisplayCode, touristDisplayRates)}</span>
                         </div>
                       )}
                       {bookingDetails.pickupLocation && (
                         <div className="flex justify-between items-center mb-2 text-sm font-bold text-slate-700">
                           <span>{isTourist ? 'Pickup Fee' : 'Delivery Fee'}:</span>
-                          <span>MYR {currentPickupFee}</span>
+                          <span>{formatDisplaySummaryCurrency(currentPickupFee, touristDisplayCode, touristDisplayRates)}</span>
                         </div>
                       )}
                       {bookingDetails.returnLocation && (
                         <div className="flex justify-between items-center mb-2 text-sm font-bold text-slate-700">
                           <span>Return Fee:</span>
-                          <span>MYR {currentReturnFee}</span>
+                          <span>{formatDisplaySummaryCurrency(currentReturnFee, touristDisplayCode, touristDisplayRates)}</span>
                         </div>
                       )}
                       <div className="flex justify-between items-center mb-4 text-sm font-bold text-slate-700">
                         <span>Security Deposit (Fully Refundable):</span>
-                        <span>MYR {currentDeposit}</span>
+                        <span>{formatDisplaySummaryCurrency(currentDeposit, touristDisplayCode, touristDisplayRates)}</span>
                       </div>
                       <div className="flex justify-between items-center border-t-2 border-cyan-200 border-dashed pt-4 mt-2">
                         <span className="font-bold text-cyan-900 text-lg">Grand Total:</span>
                         <span className="brand text-3xl font-bold text-teal-700">
-                          MYR {liveGrandTotal}
+                          {formatDisplaySummaryCurrency(liveGrandTotal, touristDisplayCode, touristDisplayRates)}
                         </span>
                       </div>
+                      {isTourist && touristDisplayCode !== 'MYR' && (
+                        <p className="mt-4 text-xs font-bold uppercase tracking-[0.14em] text-slate-500">
+                          Actual checkout amount remains MYR {liveGrandTotal}.
+                        </p>
+                      )}
                     </div>
                   );
                 }
@@ -4182,6 +4403,9 @@ export default function App() {
 
   const PaymentView = () => {
     if (!selectedCar) return null;
+    const touristDisplayCode = bookingDetails.customerType === 'international'
+      ? (bookingDetails.displayCurrency || touristDisplayCurrency || 'MYR')
+      : 'MYR';
 
     return (
       <div className="max-w-xl mx-auto px-4 py-24 animate-fadeIn font-dm">
@@ -4197,6 +4421,11 @@ export default function App() {
             <div>
               <p className="text-sm font-bold text-slate-500 mb-1">Total Amount Payable</p>
               <p className="brand text-4xl font-bold text-slate-900">MYR {bookingDetails.grandTotal}</p>
+              {bookingDetails.customerType === 'international' && touristDisplayCode !== 'MYR' && (
+                <p className="mt-2 text-sm font-bold text-blue-700">
+                  Approx. {formatDisplaySummaryCurrency(bookingDetails.grandTotal, touristDisplayCode, touristDisplayRates)}
+                </p>
+              )}
             </div>
             <div className="text-right bg-slate-50 p-3 rounded-lg border border-slate-100">
               <p className="font-bold text-slate-900">{selectedCar.name}</p>
@@ -4268,6 +4497,11 @@ export default function App() {
                  <div>
                    <p className="font-bold text-blue-900 text-sm">International Tourist Payment</p>
                    <p className="text-xs text-blue-700 mt-1">To ensure a smooth & fast return of your Security Deposit across borders, payment is strictly via Credit/Debit Card. Refunds will be credited directly back to your card.</p>
+                   {touristDisplayCode !== 'MYR' && (
+                     <p className="text-xs font-bold text-blue-900 mt-2">
+                       Display currency selected: {touristDisplayCode}. Final checkout is still processed in MYR.
+                     </p>
+                   )}
                  </div>
                </div>
             )}
